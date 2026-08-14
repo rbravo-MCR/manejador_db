@@ -82,6 +82,70 @@ def test_postgresql_inspector_lists_connectable_databases():
     assert "has_database_privilege" in sql
 
 
+def test_postgresql_inspector_builds_explorer_summary_in_two_queries():
+    """The explorer must not issue several catalog queries for each table."""
+    connection = MagicMock()
+
+    def execute(query, _params=None):
+        if "current_database()" in query:
+            return [{"db_name": "db_outlet"}]
+        return [
+            {"table_schema": "public", "table_name": "customers"},
+            {"table_schema": "public", "table_name": "orders"},
+            {"table_schema": "supplier_service", "table_name": "suppliers"},
+        ]
+
+    connection.execute_query.side_effect = execute
+
+    schema = PostgreSQLInspector(connection).inspect_database_summary()
+
+    assert schema.database_name == "db_outlet"
+    assert [item.name for item in schema.schemas] == ["public", "supplier_service"]
+    assert [table.name for table in schema.schemas[0].tables] == ["customers", "orders"]
+    assert connection.execute_query.call_count == 2
+
+
+def test_postgresql_inspector_loads_table_columns_and_marks_primary_key():
+    """Expanded tables need typed fields with primary-key metadata."""
+    connection = MagicMock()
+
+    def execute(query, _params=None):
+        if "information_schema.columns" in query:
+            return [
+                {
+                    "column_name": "id",
+                    "data_type": "integer",
+                    "udt_name": "int4",
+                    "is_nullable": "NO",
+                    "column_default": None,
+                    "character_maximum_length": None,
+                    "numeric_precision": 32,
+                    "numeric_scale": 0,
+                    "is_identity": "NO",
+                },
+                {
+                    "column_name": "email",
+                    "data_type": "character varying",
+                    "udt_name": "varchar",
+                    "is_nullable": "YES",
+                    "column_default": None,
+                    "character_maximum_length": 255,
+                    "numeric_precision": None,
+                    "numeric_scale": None,
+                    "is_identity": "NO",
+                },
+            ]
+        return [{"constraint_name": "customers_pkey", "column_name": "id"}]
+
+    connection.execute_query.side_effect = execute
+
+    columns = PostgreSQLInspector(connection).inspect_table_columns("public", "customers")
+
+    assert [column.name for column in columns] == ["id", "email"]
+    assert columns[0].is_primary_key is True
+    assert columns[1].is_primary_key is False
+
+
 def test_postgresql_inspector_mocked_inspection():
     """Test PostgreSQLInspector converts catalog queries into Universal Schema Model."""
     mock_conn = MagicMock()

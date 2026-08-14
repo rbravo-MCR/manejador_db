@@ -23,6 +23,7 @@ class ExplorerNodeType(StrEnum):
     PROCEDURE = "procedure"
     TRIGGER_GROUP = "trigger_group"
     TRIGGER = "trigger"
+    COLUMN = "column"
 
 
 class ExplorerTreeItem(QTreeWidgetItem):
@@ -57,6 +58,7 @@ class ExplorerTreeItem(QTreeWidgetItem):
             ExplorerNodeType.PROCEDURE: ("fa6s.gears", "#a6adc8"),
             ExplorerNodeType.TRIGGER_GROUP: ("fa6s.folder", "#a6adc8"),
             ExplorerNodeType.TRIGGER: ("fa6s.bell", "#f9e2af"),
+            ExplorerNodeType.COLUMN: ("fa6s.grip-lines-vertical", "#6c7086"),
         }
         icon_spec = icon_map.get(self.node_type)
         if icon_spec:

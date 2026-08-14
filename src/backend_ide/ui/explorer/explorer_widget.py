@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from backend_ide.domain.schema import DatabaseSchema
+from backend_ide.domain.schema import Column, DatabaseSchema
 from backend_ide.ui.explorer.tree_items import ExplorerNodeType, ExplorerTreeItem
 
 
@@ -28,6 +28,7 @@ class DatabaseExplorerWidget(QWidget):
     refresh_requested = Signal()
     database_changed = Signal(str)
     add_connection_requested = Signal()
+    table_expansion_requested = Signal(str, str)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -68,12 +69,14 @@ class DatabaseExplorerWidget(QWidget):
         self.btn_refresh.setIcon(qta.icon("fa6s.arrows-rotate", color="#a6adc8"))
         self.btn_refresh.setFixedSize(28, 28)
         self.btn_refresh.setToolTip("Refrescar estructura")
+        self.btn_refresh.setStyleSheet("padding: 0; border: none; background: transparent;")
         self.btn_refresh.clicked.connect(self.refresh_requested.emit)
 
         self.btn_add = QPushButton()
         self.btn_add.setIcon(qta.icon("fa6s.plus", color="#a6adc8"))
         self.btn_add.setFixedSize(28, 28)
         self.btn_add.setToolTip("Nueva conexión")
+        self.btn_add.setStyleSheet("padding: 0; border: none; background: transparent;")
         self.btn_add.clicked.connect(self.add_connection_requested.emit)
 
         database_layout.addWidget(self.cmb_database, 1)
@@ -116,6 +119,11 @@ class DatabaseExplorerWidget(QWidget):
         # 5. Tree Widget
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
+        self.tree.setIndentation(16)
+        self.tree.setStyleSheet(
+            "QTreeWidget { border: none; border-radius: 0; padding: 2px; }"
+            "QTreeWidget::item { padding: 2px 3px; min-height: 18px; }"
+        )
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._show_context_menu)
         self.tree.itemExpanded.connect(self._on_item_expanded)
@@ -184,12 +192,13 @@ class DatabaseExplorerWidget(QWidget):
             )
             schema_item.is_loaded = True
             for table in s.tables:
-                ExplorerTreeItem(
+                table_item = ExplorerTreeItem(
                     ExplorerNodeType.TABLE,
                     table.name,
                     node_data={"schema": s.name, "table": table.name},
                     parent=schema_item,
                 )
+                QTreeWidgetItem(table_item, ["Expandir para ver campos"])
             self.tree.addTopLevelItem(schema_item)
 
         if self.tree.topLevelItemCount() == 0:
@@ -200,6 +209,14 @@ class DatabaseExplorerWidget(QWidget):
     def _on_item_expanded(self, item: QTreeWidgetItem) -> None:
         """Handle lazy loading on item expansion."""
         if not isinstance(item, ExplorerTreeItem) or item.is_loaded:
+            return
+
+        if item.node_type == ExplorerNodeType.TABLE:
+            item.takeChildren()
+            QTreeWidgetItem(item, ["Cargando campos…"])
+            schema_name = item.node_data.get("schema", "public")
+            table_name = item.node_data.get("table", "")
+            self.table_expansion_requested.emit(schema_name, table_name)
             return
 
         if item.node_type == ExplorerNodeType.SCHEMA and self._schema_model:
@@ -245,6 +262,62 @@ class DatabaseExplorerWidget(QWidget):
                         )
 
             item.is_loaded = True
+
+    def load_table_columns(
+        self,
+        schema_name: str,
+        table_name: str,
+        columns: list[Column],
+    ) -> None:
+        """Replace a table's loading row with typed column entries."""
+        table_item = self._find_table_item(schema_name, table_name)
+        if table_item is None:
+            return
+        table_item.takeChildren()
+        for column in columns:
+            attributes = [column.native_type]
+            if column.is_primary_key:
+                attributes.append("PK")
+            if not column.is_nullable:
+                attributes.append("NOT NULL")
+            column_item = ExplorerTreeItem(
+                ExplorerNodeType.COLUMN,
+                f"{column.name}   {' · '.join(attributes)}",
+                node_data={"schema": schema_name, "table": table_name, "column": column.name},
+                parent=table_item,
+            )
+            column_item.setToolTip(0, f"{column.name}: {' · '.join(attributes)}")
+        if not columns:
+            QTreeWidgetItem(table_item, ["Sin campos visibles"])
+        table_item.is_loaded = True
+        table_item.setExpanded(True)
+
+    def show_table_columns_error(self, schema_name: str, table_name: str, message: str) -> None:
+        """Keep a field-loading error scoped to its table row."""
+        table_item = self._find_table_item(schema_name, table_name)
+        if table_item is None:
+            return
+        table_item.takeChildren()
+        QTreeWidgetItem(table_item, [f"Error: {message}"])
+        table_item.is_loaded = False
+
+    def _find_table_item(self, schema_name: str, table_name: str) -> ExplorerTreeItem | None:
+        """Find one table node in the compact schema/table tree."""
+        for schema_index in range(self.tree.topLevelItemCount()):
+            schema_item = self.tree.topLevelItem(schema_index)
+            if not isinstance(schema_item, ExplorerTreeItem):
+                continue
+            if schema_item.node_data.get("schema_name") != schema_name:
+                continue
+            for table_index in range(schema_item.childCount()):
+                table_item = schema_item.child(table_index)
+                if (
+                    isinstance(table_item, ExplorerTreeItem)
+                    and table_item.node_type == ExplorerNodeType.TABLE
+                    and table_item.node_data.get("table") == table_name
+                ):
+                    return table_item
+        return None
 
     def filter_items(self, text: str) -> None:
         """Filter tree items by matching search text."""

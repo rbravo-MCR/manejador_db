@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QLineEdit
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.domain.connection import ConnectionProfile, Environment
 from backend_ide.infrastructure.storage.connection_repository import ConnectionRepository
+from backend_ide.ui.components import ConnectionSelector
 from backend_ide.ui.dialogs.connection_dialog import ConnectionDialog
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -120,6 +121,33 @@ def test_connection_service_and_adapter(temp_repo):
     conn_adapter = service.build_connection(profile)
     assert conn_adapter is not None
     assert conn_adapter.config.password == "my_dev_password"
+
+
+def test_connection_service_can_target_another_database_without_mutating_profile(temp_repo):
+    """A database dropdown selection creates a transient adapter, not a duplicate profile."""
+    repo, _ = temp_repo
+    service = ConnectionService(repo)
+    profile = ConnectionProfile(name="RDS", engine="postgresql", database="db_outlet")
+
+    adapter = service.build_connection(profile, "secret", database_name="analytics")
+
+    assert adapter.config.database == "analytics"
+    assert profile.database == "db_outlet"
+
+
+def test_connection_selector_can_select_profile_by_id(temp_repo, qtbot):
+    """A newly saved profile can become the active toolbar selection."""
+    repo, _ = temp_repo
+    service = ConnectionService(repo)
+    first = ConnectionProfile(name="First", engine="postgresql")
+    second = ConnectionProfile(name="Second", engine="postgresql")
+    service.save_profile(first)
+    service.save_profile(second)
+    selector = ConnectionSelector(service)
+    qtbot.addWidget(selector)
+
+    assert selector.select_profile(second.id)
+    assert selector.get_selected_profile().id == second.id
 
 
 def test_connection_dialog_gui(temp_repo, qtbot):

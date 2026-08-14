@@ -17,7 +17,7 @@ def test_schema_worker_emits_database_names_and_schema(qtbot):
 
     with (
         patch.object(PostgreSQLInspector, "list_databases", return_value=["db_outlet"]),
-        patch.object(PostgreSQLInspector, "inspect_database", return_value=schema),
+        patch.object(PostgreSQLInspector, "inspect_database_summary", return_value=schema),
     ):
         worker.run()
 
@@ -35,7 +35,7 @@ def test_schema_worker_reuses_known_database_names(qtbot):
 
     with (
         patch.object(PostgreSQLInspector, "list_databases") as list_databases,
-        patch.object(PostgreSQLInspector, "inspect_database", return_value=schema),
+        patch.object(PostgreSQLInspector, "inspect_database_summary", return_value=schema),
     ):
         worker.run()
 

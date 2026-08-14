@@ -56,6 +56,44 @@ class PostgreSQLInspector:
         )
         return [row["datname"] for row in rows]
 
+    def inspect_database_summary(self) -> DatabaseSchema:
+        """Build the lightweight schema/table model required by Database Explorer."""
+        rows = self.connection.execute_query(
+            """
+            SELECT table_schema, table_name
+            FROM information_schema.tables
+            WHERE table_type = 'BASE TABLE'
+              AND table_schema NOT IN ('information_schema', 'pg_catalog')
+              AND table_schema NOT LIKE 'pg_toast%'
+            ORDER BY table_schema, table_name;
+            """
+        )
+        tables_by_schema: dict[str, list[Table]] = {}
+        for row in rows:
+            schema_name = row["table_schema"]
+            tables_by_schema.setdefault(schema_name, []).append(
+                Table(name=row["table_name"], schema_name=schema_name)
+            )
+
+        return DatabaseSchema(
+            engine_name="postgresql",
+            database_name=self._get_current_database_name(),
+            schemas=[
+                Schema(name=schema_name, tables=tables)
+                for schema_name, tables in tables_by_schema.items()
+            ],
+        )
+
+    def inspect_table_columns(self, schema_name: str, table_name: str) -> list[Column]:
+        """Inspect fields for one expanded explorer table, including primary-key markers."""
+        columns = self._inspect_columns(schema_name, table_name)
+        primary_key = self._inspect_primary_key(schema_name, table_name)
+        primary_names = set(primary_key.column_names if primary_key else [])
+        return [
+            column.model_copy(update={"is_primary_key": column.name in primary_names})
+            for column in columns
+        ]
+
     def inspect_database(
         self, schema_names: list[str] | None = None, include_views: bool = True
     ) -> DatabaseSchema:

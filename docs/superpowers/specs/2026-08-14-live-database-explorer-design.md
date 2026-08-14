@@ -22,9 +22,10 @@ The successful flow is:
 4. A **Base de datos** dropdown appears below the `DATABASE EXPLORER` title and above its filter.
 5. The dropdown selects the database stored in the profile and lists every non-template database
    for which the PostgreSQL user has `CONNECT` privilege.
-6. The explorer renders `Schema → Table` because the selected profile and database are already
+6. The explorer renders `Schema → Table → Column` because the selected profile and database are already
    visible above the tree; redundant connection, database, and Tables-group nodes are omitted.
-7. The first schema is expanded so its tables are visible without another click.
+7. The first schema is expanded so its tables are visible without another click. Expanding a table
+   lazily loads field name, native type, nullability, and primary-key status.
 8. The breadcrumb and status bar use the real selected profile, database, and schema instead of
    the current hard-coded local PostgreSQL labels.
 
@@ -83,8 +84,10 @@ add controls aligned to its right. Add an `ENTIDADES` heading with a total table
 explicit loading, empty, and error presentations inside the tree. Loading replaces the tree only
 when no successful model has been loaded yet; refresh and database switching preserve the current
 tree until a new model succeeds. The tree contains schema nodes with their tables directly beneath
-them, and the first schema expands automatically. Use QtAwesome icons matching the reference for
-database, refresh, add, filter, schema, and table; do not use emoji or handcrafted icons.
+them, and the first schema expands automatically. Each table uses a lazy-load child; expansion
+dispatches a short-lived background field query and renders typed column rows. Use QtAwesome icons
+matching the reference for database, refresh, add, filter, schema, table, and column; do not use
+emoji or handcrafted icons.
 
 ### Main window
 
@@ -139,6 +142,7 @@ Automated tests will verify:
 - a failed database switch preserves the prior selection, active connection, and tree;
 - successful inspection populates schema/table rows directly and expands the first schema;
 - the `ENTIDADES` badge equals the total number of tables in the loaded model;
+- expanding a table asynchronously loads only that table's typed columns and PK markers;
 - profile selection and refresh trigger inspection without duplicate concurrent work;
 - loading, empty, and failure states are visible and do not close the main window;
 - breadcrumb and status text reflect the live profile and inspected database;

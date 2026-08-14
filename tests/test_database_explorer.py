@@ -74,6 +74,7 @@ def test_explorer_widget_initialization(qtbot):
     assert explorer.cmb_database is not None
     assert explorer.lbl_entities_count.text() == "0"
     assert explorer.tree is not None
+    assert explorer.tree.indentation() <= 18
     assert explorer.tree.topLevelItemCount() == 0
 
 
@@ -127,6 +128,32 @@ def test_explorer_loading_and_preserved_error_states(qtbot):
 
     assert explorer.tree.topLevelItem(0) is old_schema
     assert "Sin permiso" in explorer.lbl_state.text()
+
+
+def test_expanding_table_requests_and_displays_typed_columns(qtbot):
+    """Table chevrons lazily reveal field names, types, nullability, and PK status."""
+    explorer = DatabaseExplorerWidget()
+    qtbot.addWidget(explorer)
+    explorer.load_schema_model("Test Connection", create_sample_schema())
+    requested = []
+    explorer.table_expansion_requested.connect(
+        lambda schema, table: requested.append((schema, table))
+    )
+    table_item = explorer.tree.topLevelItem(0).child(0)
+
+    table_item.setExpanded(True)
+
+    assert requested == [("public", "users")]
+    assert "Cargando" in table_item.child(0).text(0)
+
+    users = create_sample_schema().schemas[0].tables[0]
+    explorer.load_table_columns("public", "users", users.columns)
+
+    assert table_item.childCount() == 2
+    assert "id" in table_item.child(0).text(0)
+    assert "INT" in table_item.child(0).text(0)
+    assert "PK" in table_item.child(0).text(0)
+    assert not table_item.child(0).icon(0).isNull()
 
 
 def test_explorer_search_filtering(qtbot):

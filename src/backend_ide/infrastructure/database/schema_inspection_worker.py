@@ -48,7 +48,7 @@ class SchemaInspectionWorker(QRunnable):
             names = self.database_names
             if names is None:
                 names = tuple(inspector.list_databases())
-            schema = inspector.inspect_database()
+            schema = inspector.inspect_database_summary()
             self.signals.succeeded.emit(DatabaseInspectionResult(tuple(names), schema))
         except Exception as err:
             message = self._sanitize_error(str(err))

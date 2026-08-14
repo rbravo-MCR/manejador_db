@@ -86,6 +86,14 @@ class ConnectionSelector(QWidget):
             return self._profiles[idx]
         return None
 
+    def select_profile(self, profile_id: str) -> bool:
+        """Select a saved profile by ID and emit the normal change signal."""
+        index = self.combo.findData(profile_id)
+        if index < 0:
+            return False
+        self.combo.setCurrentIndex(index)
+        return True
+
     def _on_connection_changed(self, index: int) -> None:
         """Update environment badge styling when selection changes."""
         profile = self.get_selected_profile()

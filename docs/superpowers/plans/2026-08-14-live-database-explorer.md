@@ -381,7 +381,8 @@ Expected: all tests pass with zero failures.
 Run: `UV_CACHE_DIR=/tmp/manejador-db-uv-cache uv run python -m backend_ide.ui.app`
 
 Expected: the process remains running; after selecting the saved profile, the dropdown lists
-accessible databases and the explorer visibly contains schemas and tables.
+accessible databases and the explorer visibly contains schemas and tables. Expanding a table loads
+its fields through `TableColumnsWorker` and shows native type, `PK`, and `NOT NULL` markers.
 
 - [ ] **Step 4: Commit any verification-only formatting changes**
 

@@ -36,7 +36,10 @@ class ConnectionService:
         return self.repository.get_password(profile_id)
 
     def build_connection(
-        self, profile: ConnectionProfile, password: str | None = None
+        self,
+        profile: ConnectionProfile,
+        password: str | None = None,
+        database_name: str | None = None,
     ) -> DatabaseConnection:
         """Build database connection adapter from profile."""
         effective_pwd = password if password is not None else self.get_password(profile.id)
@@ -46,7 +49,7 @@ class ConnectionService:
             engine=profile.engine,
             host=profile.host,
             port=profile.port,
-            database=profile.database,
+            database=database_name or profile.database,
             username=profile.username,
             password=effective_pwd,
             ssl_mode=profile.ssl_mode,

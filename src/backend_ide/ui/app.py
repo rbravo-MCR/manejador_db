@@ -10,7 +10,11 @@ from backend_ide.ui.views.main_window import MainWindow
 logger = get_logger(__name__)
 
 
-def create_app(argv: list[str] | None = None) -> tuple[QApplication, MainWindow]:
+def create_app(
+    argv: list[str] | None = None,
+    *,
+    auto_load_profile: bool = True,
+) -> tuple[QApplication, MainWindow]:
     """Create and configure QApplication and MainWindow."""
     configure_logging("INFO")
     logger.info("Initializing Backend IDE PySide6 Application")
@@ -19,7 +23,7 @@ def create_app(argv: list[str] | None = None) -> tuple[QApplication, MainWindow]
     if app is None:
         app = QApplication(argv or sys.argv)
 
-    window = MainWindow()
+    window = MainWindow(auto_load_profile=auto_load_profile)
     return app, window
 
 
