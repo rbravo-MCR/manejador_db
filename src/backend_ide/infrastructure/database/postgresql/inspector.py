@@ -42,6 +42,20 @@ class PostgreSQLInspector:
     def __init__(self, connection: DatabaseConnection) -> None:
         self.connection = connection
 
+    def list_databases(self) -> list[str]:
+        """List non-template databases the current PostgreSQL user may connect to."""
+        rows = self.connection.execute_query(
+            """
+            SELECT datname
+            FROM pg_database
+            WHERE NOT datistemplate
+              AND datallowconn
+              AND has_database_privilege(datname, 'CONNECT')
+            ORDER BY datname;
+            """
+        )
+        return [row["datname"] for row in rows]
+
     def inspect_database(
         self, schema_names: list[str] | None = None, include_views: bool = True
     ) -> DatabaseSchema:

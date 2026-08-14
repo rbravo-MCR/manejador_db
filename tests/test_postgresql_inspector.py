@@ -65,6 +65,23 @@ def test_postgresql_connection_uses_a_bounded_connect_timeout():
     assert connect.call_args.kwargs["connect_timeout"] == 8
 
 
+def test_postgresql_inspector_lists_connectable_databases():
+    """Only user-connectable, non-template databases should reach the selector."""
+    connection = MagicMock()
+    connection.execute_query.return_value = [
+        {"datname": "analytics"},
+        {"datname": "db_outlet"},
+    ]
+
+    databases = PostgreSQLInspector(connection).list_databases()
+
+    assert databases == ["analytics", "db_outlet"]
+    sql = connection.execute_query.call_args.args[0]
+    assert "NOT datistemplate" in sql
+    assert "datallowconn" in sql
+    assert "has_database_privilege" in sql
+
+
 def test_postgresql_inspector_mocked_inspection():
     """Test PostgreSQLInspector converts catalog queries into Universal Schema Model."""
     mock_conn = MagicMock()
