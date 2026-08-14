@@ -484,15 +484,13 @@ class CodeGenerator(Protocol):
     id: str
     language: str
 
-    def supports(self, request: GenerationRequest) -> bool:
-        ...
+    def supports(self, request: GenerationRequest) -> bool: ...
 
     def generate(
         self,
         schema: DatabaseSchema,
         request: GenerationRequest,
-    ) -> GeneratedProject:
-        ...
+    ) -> GeneratedProject: ...
 ```
 
 Potential components:

@@ -119,3 +119,17 @@ def test_results_widget_grid_and_error_display(qtbot):
 
     assert results_widget.results_tabs.currentWidget() == results_widget.txt_messages
     assert "invalid_table" in results_widget.txt_messages.toPlainText()
+
+
+def test_results_actions_are_aligned_and_emoji_free(qtbot):
+    """Adding extra action rows or emoji labels must fail."""
+    results = ResultsWidget()
+    qtbot.addWidget(results)
+    layout = results.action_bar.layout()
+
+    assert layout.itemAt(0).widget() is results.lbl_stats
+    assert layout.itemAt(layout.count() - 2).widget() is results.txt_filter_grid
+    assert layout.itemAt(layout.count() - 1).widget() is results.btn_export
+    assert results.txt_filter_grid.height() == 32
+    assert results.btn_export.height() == 32
+    assert "📥" not in results.btn_export.text()

@@ -78,6 +78,22 @@ def test_explorer_widget_initialization(qtbot):
     assert explorer.tree.topLevelItemCount() == 0
 
 
+def test_explorer_header_contains_summary_and_compact_actions(qtbot):
+    """Separating the entity summary or actions into extra rows must fail."""
+    explorer = DatabaseExplorerWidget()
+    qtbot.addWidget(explorer)
+    header_layout = explorer.header.layout()
+    widgets = [header_layout.itemAt(index).widget() for index in range(header_layout.count())]
+
+    assert explorer.lbl_title in widgets
+    assert explorer.lbl_entities_count in widgets
+    assert explorer.btn_refresh in widgets
+    assert explorer.btn_add in widgets
+    assert explorer.btn_refresh.size().toTuple() == (32, 32)
+    assert explorer.btn_add.size().toTuple() == (32, 32)
+    assert explorer.minimumWidth() == 280
+
+
 def test_explorer_model_loading_uses_dense_schema_table_hierarchy(qtbot):
     """Show tables directly below schemas like the selected visual reference."""
     explorer = DatabaseExplorerWidget()

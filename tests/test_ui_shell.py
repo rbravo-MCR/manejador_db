@@ -4,13 +4,14 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QDialog, QWidget
 
 from backend_ide.domain.connection import ConnectionProfile
 from backend_ide.domain.schema import DatabaseSchema, Schema, Table
 from backend_ide.infrastructure.database.schema_inspection_worker import DatabaseInspectionResult
 from backend_ide.ui.app import create_app
-from backend_ide.ui.theme import ThemeManager, ThemeMode
+from backend_ide.ui.theme import DARK_PALETTE, LIGHT_PALETTE, ThemeManager, ThemeMode
 from backend_ide.ui.views.main_window import MainWindow
 
 # Set offscreen platform plugin for headless CI testing
@@ -18,11 +19,15 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 
 @pytest.fixture
-def app_instance():
+def app_instance(qapp, tmp_path):
     """Fixture providing initialized QApplication and MainWindow."""
+    previous_manager = ThemeManager._instance
+    settings = QSettings(str(tmp_path / "app-theme.ini"), QSettings.Format.IniFormat)
+    ThemeManager._instance = ThemeManager(settings=settings)
     app, window = create_app([], auto_load_profile=False)
     yield app, window
     window.close()
+    ThemeManager._instance = previous_manager
 
 
 def test_main_window_creation(app_instance, qtbot):
@@ -34,7 +39,7 @@ def test_main_window_creation(app_instance, qtbot):
     assert window.conn_selector is not None
     assert window.theme_toggle is not None
     assert window.explorer_widget is not None
-    assert window.explorer_widget.minimumWidth() >= 320
+    assert window.explorer_widget.minimumWidth() == 280
     assert window.tabs_workspace.count() == 1
     assert window.status_bar is not None
 
@@ -63,8 +68,65 @@ def test_header_rows_stay_compact_and_controls_are_vertically_aligned(app_instan
     assert max(vertical_centers) - min(vertical_centers) <= 2
 
 
+def test_top_bar_groups_controls_by_documented_function(app_instance, qtbot):
+    """Flattening or misordering the three documented toolbar zones must fail."""
+    app, window = app_instance
+    qtbot.addWidget(window)
+    window.show()
+    app.processEvents()
+
+    assert window.minimumSize().width() == 1100
+    assert window.minimumSize().height() == 700
+    assert window.top_bar.layout().columnCount() == 3
+    assert window.top_bar.layout().itemAtPosition(0, 0).widget() is window.conn_selector
+    assert window.top_bar.layout().itemAtPosition(0, 1).widget() is window.query_toolbar
+    assert window.top_bar.layout().itemAtPosition(0, 2).widget() is window.theme_toggle
+    assert window.btn_execute.height() == 32
+    assert window.btn_new_query.height() == 32
+    assert window.btn_er_diagram.height() == 32
+    assert not window.btn_er_diagram.isEnabled()
+
+
+def test_connection_controls_follow_context_then_actions(app_instance, qtbot):
+    """Moving profile actions ahead of their context must fail."""
+    _, window = app_instance
+    qtbot.addWidget(window)
+    layout = window.conn_selector.layout()
+    widgets = [layout.itemAt(index).widget() for index in range(layout.count())]
+
+    assert widgets == [
+        window.conn_selector.lbl_profile,
+        window.conn_selector.combo,
+        window.conn_selector.env_badge,
+        window.conn_selector.btn_new,
+        window.conn_selector.btn_edit,
+    ]
+    assert window.conn_selector.combo.minimumWidth() == 180
+
+
+@pytest.mark.parametrize("size", [(1340, 840), (1100, 700)])
+def test_documented_window_sizes_have_no_clipped_toolbar_controls(app_instance, qtbot, size):
+    """Shrinking to the documented minimum must not clip or overlap toolbar groups."""
+    app, window = app_instance
+    qtbot.addWidget(window)
+    window.resize(*size)
+    window.show()
+    app.processEvents()
+
+    top_rect = window.top_bar.rect()
+    controls = (window.conn_selector, window.query_toolbar, window.theme_toggle)
+    geometries = [control.geometry() for control in controls]
+    for control, rect in zip(controls, geometries, strict=True):
+        assert top_rect.contains(rect.topLeft())
+        assert top_rect.contains(rect.bottomRight())
+        assert control.isVisible()
+
+    assert geometries[0].right() < geometries[1].left()
+    assert geometries[1].right() < geometries[2].left()
+
+
 def test_theme_toggle_functionality(app_instance, qtbot):
-    """Test switching Dark/Light theme updates ThemeManager and ToggleButton text."""
+    """The quick toggle must change mode and refresh its accessible description."""
     _, window = app_instance
     qtbot.addWidget(window)
 
@@ -72,7 +134,8 @@ def test_theme_toggle_functionality(app_instance, qtbot):
     manager.set_mode(ThemeMode.DARK)
 
     assert manager.current_mode == ThemeMode.DARK
-    assert "Light" in window.theme_toggle.text()
+    assert "Oscuro" in window.theme_toggle.toolTip()
+    assert not window.theme_toggle.icon().isNull()
 
     # Click toggle button
     qtbot.mouseClick(
@@ -80,7 +143,60 @@ def test_theme_toggle_functionality(app_instance, qtbot):
     )
 
     assert manager.current_mode == ThemeMode.LIGHT
-    assert "Dark" in window.theme_toggle.text()
+    assert "Claro" in window.theme_toggle.toolTip()
+
+
+def test_theme_manager_persists_all_documented_modes(qapp, tmp_path):
+    """Removing persistence for any documented appearance mode must fail."""
+    settings_path = tmp_path / "theme.ini"
+    settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings=settings)
+
+    for mode in (ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK):
+        manager.set_mode(mode)
+        assert manager.current_mode == mode
+        assert settings.value("appearance/theme") == mode.value
+
+    restored = ThemeManager(settings=QSettings(str(settings_path), QSettings.Format.IniFormat))
+    assert restored.current_mode == ThemeMode.DARK
+
+
+def test_system_theme_resolves_to_a_concrete_palette(qapp, tmp_path):
+    """Treating System as a stored Dark choice must fail this behavior contract."""
+    settings = QSettings(str(tmp_path / "system.ini"), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings=settings)
+
+    manager.set_mode(ThemeMode.SYSTEM)
+
+    assert manager.current_mode == ThemeMode.SYSTEM
+    assert manager.resolved_mode in (ThemeMode.LIGHT, ThemeMode.DARK)
+    expected = LIGHT_PALETTE if manager.resolved_mode == ThemeMode.LIGHT else DARK_PALETTE
+    assert manager.current_palette == expected
+
+
+def test_theme_control_exposes_system_light_and_dark(app_instance, qtbot):
+    """Dropping a documented mode or quick-toggle behavior must fail."""
+    _, window = app_instance
+    qtbot.addWidget(window)
+    manager = ThemeManager.get_instance()
+    manager.set_mode(ThemeMode.SYSTEM)
+
+    assert window.theme_toggle.height() == 32
+    assert [action.data() for action in window.theme_toggle.menu().actions()] == [
+        ThemeMode.SYSTEM,
+        ThemeMode.LIGHT,
+        ThemeMode.DARK,
+    ]
+
+    dark_action = next(
+        action for action in window.theme_toggle.menu().actions() if action.data() == ThemeMode.DARK
+    )
+    dark_action.trigger()
+    assert manager.current_mode == ThemeMode.DARK
+    assert dark_action.isChecked()
+
+    qtbot.mouseClick(window.theme_toggle, Qt.MouseButton.LeftButton)
+    assert manager.current_mode == ThemeMode.LIGHT
 
 
 def test_workspace_tabs_management(app_instance, qtbot):

@@ -28,6 +28,7 @@ class ThemePalette(BaseModel):
     text_primary: str
     text_secondary: str
     text_muted: str
+    text_on_accent: str
     accent: str
     accent_hover: str
     success: str
@@ -48,6 +49,7 @@ DARK_PALETTE = ThemePalette(
     text_primary="#cdd6f4",
     text_secondary="#a6adc8",
     text_muted="#6c7086",
+    text_on_accent="#11111b",
     accent="#89b4fa",
     accent_hover="#b4befe",
     success="#a6e3a1",
@@ -68,6 +70,7 @@ LIGHT_PALETTE = ThemePalette(
     text_primary="#4c4f69",
     text_secondary="#5c5f77",
     text_muted="#8c8fa1",
+    text_on_accent="#11111b",
     accent="#1e66f5",
     accent_hover="#209fb5",
     success="#40a02b",
