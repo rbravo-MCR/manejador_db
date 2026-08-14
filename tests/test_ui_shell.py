@@ -19,11 +19,15 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 
 @pytest.fixture
-def app_instance():
+def app_instance(qapp, tmp_path):
     """Fixture providing initialized QApplication and MainWindow."""
+    previous_manager = ThemeManager._instance
+    settings = QSettings(str(tmp_path / "app-theme.ini"), QSettings.Format.IniFormat)
+    ThemeManager._instance = ThemeManager(settings=settings)
     app, window = create_app([], auto_load_profile=False)
     yield app, window
     window.close()
+    ThemeManager._instance = previous_manager
 
 
 def test_main_window_creation(app_instance, qtbot):

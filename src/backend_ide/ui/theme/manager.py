@@ -9,7 +9,7 @@ from backend_ide.ui.theme.tokens import DARK_PALETTE, LIGHT_PALETTE, ThemeMode, 
 
 
 class ThemeManager(QObject):
-    """Central manager for application dark/light appearance and QSS styling."""
+    """Central manager for System/Light/Dark appearance and QSS styling."""
 
     theme_changed = Signal(str)  # Emits selected mode name ("system", "light", or "dark")
 
