@@ -214,7 +214,7 @@ class MainWindow(QMainWindow):
     def _update_toolbar_icons(self, _mode: str | None = None) -> None:
         """Keep command icons readable when the centralized theme changes."""
         palette = self._theme_manager.current_palette
-        self.btn_execute.setIcon(qta.icon("fa6s.play", color="#11111b"))
+        self.btn_execute.setIcon(qta.icon("fa6s.play", color=palette.text_on_accent))
         self.btn_new_query.setIcon(qta.icon("fa6s.file-circle-plus", color=palette.text_primary))
         self.btn_er_diagram.setIcon(qta.icon("fa6s.diagram-project", color=palette.text_muted))
 

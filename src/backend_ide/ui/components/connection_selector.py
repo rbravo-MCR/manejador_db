@@ -43,12 +43,6 @@ class ConnectionSelector(QWidget):
         self.env_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.env_badge.setFixedSize(58, 24)
 
-        badge_style = (
-            "background-color: #89b4fa; color: #181825; "
-            "font-weight: bold; border-radius: 4px; padding: 2px 6px;"
-        )
-        self.env_badge.setStyleSheet(badge_style)
-
         self.btn_edit = QPushButton("Editar")
         self.btn_edit.setFixedHeight(32)
         self.btn_edit.setToolTip("Editar parámetros de la conexión seleccionada")
@@ -72,6 +66,24 @@ class ConnectionSelector(QWidget):
         color = self._theme_manager.current_palette.text_primary
         self.btn_new.setIcon(qta.icon("fa6s.plug-circle-plus", color=color))
         self.btn_edit.setIcon(qta.icon("fa6s.pen-to-square", color=color))
+        profile = self.get_selected_profile()
+        if profile is not None:
+            self._update_badge_style(profile)
+
+    def _update_badge_style(self, profile: ConnectionProfile) -> None:
+        """Style the environment badge from semantic theme tokens or user color."""
+        palette = self._theme_manager.current_palette
+        color_map = {
+            Environment.DEVELOPMENT: palette.accent,
+            Environment.TESTING: palette.success,
+            Environment.STAGING: palette.warning,
+            Environment.PRODUCTION: palette.danger,
+        }
+        bg_color = profile.color or color_map.get(profile.environment, palette.accent)
+        self.env_badge.setStyleSheet(
+            f"background-color: {bg_color}; color: {palette.text_on_accent}; "
+            "font-weight: bold; border-radius: 4px; padding: 2px 6px;"
+        )
 
     def refresh_profiles(self) -> None:
         """Reload saved profiles into combo box."""
@@ -116,17 +128,6 @@ class ConnectionSelector(QWidget):
         env_val = profile.environment.value.upper()
         self.env_badge.setText(f" [{env_val[:4]}] ")
 
-        color_map = {
-            Environment.DEVELOPMENT: "#89b4fa",
-            Environment.TESTING: "#a6e3a1",
-            Environment.STAGING: "#f9e2af",
-            Environment.PRODUCTION: "#f38ba8",
-        }
-        bg_color = profile.color or color_map.get(profile.environment, "#89b4fa")
-        style = (
-            f"background-color: {bg_color}; color: #11111b; "
-            "font-weight: bold; border-radius: 4px; padding: 2px 6px;"
-        )
-        self.env_badge.setStyleSheet(style)
+        self._update_badge_style(profile)
 
         self.connection_changed.emit(profile.id)

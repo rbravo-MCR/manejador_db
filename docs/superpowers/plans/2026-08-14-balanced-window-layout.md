@@ -325,7 +325,7 @@ git commit -m "feat: group top bar actions by workflow"
 - Consumes: existing explorer and results signals, result models, and export service.
 - Produces: `DatabaseExplorerWidget.header`, `DatabaseExplorerWidget.lbl_title`, `DatabaseExplorerWidget.entities_row` removed, and `ResultsWidget.action_bar` with stable child order.
 
-- [ ] **Step 1: Write failing explorer layout test**
+- [x] **Step 1: Write failing explorer layout test**
 
 Add:
 
@@ -345,7 +345,7 @@ def test_explorer_header_contains_summary_and_compact_actions(qtbot):
     assert explorer.minimumWidth() == 280
 ```
 
-- [ ] **Step 2: Write failing results layout test**
+- [x] **Step 2: Write failing results layout test**
 
 Add:
 
@@ -363,19 +363,19 @@ def test_results_actions_are_aligned_and_emoji_free(qtbot):
     assert "📥" not in results.btn_export.text()
 ```
 
-- [ ] **Step 3: Run both tests and verify failure**
+- [x] **Step 3: Run both tests and verify failure**
 
 Run: `uv run pytest tests/test_database_explorer.py::test_explorer_header_contains_summary_and_compact_actions tests/test_query_execution.py::test_results_actions_are_aligned_and_emoji_free -v`
 
 Expected: FAIL because header/action widgets are local, explorer actions are in the database row, and results still use emoji text.
 
-- [ ] **Step 4: Consolidate the explorer header**
+- [x] **Step 4: Consolidate the explorer header**
 
 Expose `self.header` and `self.lbl_title`. Move `lbl_entities_count`, `btn_refresh`, and `btn_add` into the header. Leave only `cmb_database` in `database_row`; retain `database_row` so the existing order test remains valid. Set the widget minimum width to 280, compact buttons to 32 × 32, object name both as `icon_button`, and remove inline color style sheets.
 
 Use `ThemeManager.current_palette` when generating QtAwesome icons and refresh them on `theme_changed`. Replace state-label inline colors with a dynamic `status` property (`loading` or `error`) and QSS selectors in `ThemeManager`.
 
-- [ ] **Step 5: Align and clean the results toolbar**
+- [x] **Step 5: Align and clean the results toolbar**
 
 Expose `self.action_bar`, set filter and export controls to 32 px, and retain status → stretch → filter → export order. Replace emoji placeholders/actions/tabs with QtAwesome icons:
 
@@ -390,17 +390,17 @@ self.results_tabs.addTab(self.txt_messages, qta.icon("fa6s.rectangle-list"), "Me
 
 Remove emoji prefixes from status and message strings without changing their information.
 
-- [ ] **Step 6: Centralize touched component styles**
+- [x] **Step 6: Centralize touched component styles**
 
 Add QSS rules for `#sidebar_title`, `#section_label`, `#count_badge`, `QLabel[status="loading"]`, and `QLabel[status="error"]` using theme tokens. Replace inline breadcrumb colors with object names and QSS rules; remove decorative emoji from breadcrumb labels while preserving connection/database/schema text.
 
-- [ ] **Step 7: Run explorer, result, and shell tests**
+- [x] **Step 7: Run explorer, result, and shell tests**
 
 Run: `uv run pytest tests/test_database_explorer.py tests/test_query_execution.py tests/test_ui_shell.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit panel layout changes**
+- [x] **Step 8: Commit panel layout changes**
 
 ```bash
 git add src/backend_ide/ui/explorer/explorer_widget.py src/backend_ide/ui/results/results_widget.py src/backend_ide/ui/components/breadcrumb.py src/backend_ide/ui/theme/manager.py tests/test_database_explorer.py tests/test_query_execution.py

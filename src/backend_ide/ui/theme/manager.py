@@ -146,6 +146,30 @@ class ThemeManager(QObject):
             padding: 6px 10px;
         }}
 
+        QLabel#sidebar_title {{
+            color: {p.text_secondary};
+            font-size: 11px;
+            font-weight: bold;
+        }}
+
+        QLabel#count_badge {{
+            background-color: {p.bg_hover};
+            color: {p.text_primary};
+            border-radius: 8px;
+            font-size: 10px;
+            padding: 1px 5px;
+        }}
+
+        QLabel[status="loading"] {{
+            color: {p.info};
+            padding: 2px 4px;
+        }}
+
+        QLabel[status="error"] {{
+            color: {p.danger};
+            padding: 2px 4px;
+        }}
+
         /* Breadcrumb Bar */
         #breadcrumb_bar {{
             background-color: {p.bg_sidebar};
@@ -153,6 +177,31 @@ class ThemeManager(QObject):
             padding: 4px 10px;
             font-size: 12px;
             color: {p.text_secondary};
+        }}
+
+        QLabel#breadcrumb_separator {{
+            color: {p.text_muted};
+            font-size: 14px;
+            font-weight: bold;
+        }}
+
+        QLabel#breadcrumb_context {{
+            color: {p.text_secondary};
+            font-weight: 500;
+        }}
+
+        QLabel#breadcrumb_current {{
+            color: {p.accent};
+            font-weight: bold;
+        }}
+
+        QLabel#results_stats {{
+            font-size: 12px;
+            font-weight: bold;
+        }}
+
+        QTextEdit#monospace_output {{
+            font-family: 'Fira Code', 'JetBrains Mono', monospace;
         }}
 
         /* Tabs Styling */
@@ -205,7 +254,7 @@ class ThemeManager(QObject):
 
         QPushButton:pressed, QToolButton:pressed {{
             background-color: {p.accent};
-            color: #11111b;
+            color: {p.text_on_accent};
         }}
 
         QPushButton:disabled, QToolButton:disabled {{
@@ -217,7 +266,7 @@ class ThemeManager(QObject):
         /* Primary Action Buttons */
         QPushButton#btn_new_conn {{
             background-color: {p.accent};
-            color: #11111b;
+            color: {p.text_on_accent};
             font-weight: bold;
             border: 1px solid {p.accent};
             padding: 6px 16px;
@@ -227,12 +276,12 @@ class ThemeManager(QObject):
         QPushButton#btn_new_conn:hover {{
             background-color: {p.accent_hover};
             border-color: {p.accent_hover};
-            color: #11111b;
+            color: {p.text_on_accent};
         }}
 
         QPushButton#btn_execute {{
             background-color: {p.success};
-            color: #11111b;
+            color: {p.text_on_accent};
             font-weight: bold;
             border: 1px solid {p.success};
             padding: 6px 18px;
@@ -242,12 +291,23 @@ class ThemeManager(QObject):
         QPushButton#btn_execute:hover {{
             background-color: {p.success_hover};
             border-color: {p.success_hover};
-            color: #11111b;
+            color: {p.text_on_accent};
         }}
 
         QToolButton#theme_toggle_btn {{
             padding: 4px;
             border-radius: 6px;
+        }}
+
+        QPushButton#icon_button {{
+            background-color: transparent;
+            border: none;
+            padding: 0;
+        }}
+
+        QPushButton#icon_button:hover {{
+            background-color: {p.bg_hover};
+            border: 1px solid {p.border_active};
         }}
 
         /* Input Controls & ComboBox */
@@ -268,7 +328,7 @@ class ThemeManager(QObject):
             background-color: {p.bg_surface};
             border: 1px solid {p.border};
             selection-background-color: {p.accent};
-            selection-color: #11111b;
+            selection-color: {p.text_on_accent};
             padding: 4px;
             border-radius: 6px;
         }}
