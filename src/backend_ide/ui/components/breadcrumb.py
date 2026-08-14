@@ -9,6 +9,7 @@ class BreadcrumbWidget(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("breadcrumb_bar")
+        self.setFixedHeight(34)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 4, 10, 4)

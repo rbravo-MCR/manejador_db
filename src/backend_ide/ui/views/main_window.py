@@ -49,9 +49,11 @@ class MainWindow(QMainWindow):
         # 1. Segmented Top Bar Toolbar
         top_bar = QWidget()
         top_bar.setObjectName("top_bar")
+        top_bar.setFixedHeight(52)
         top_layout = QHBoxLayout(top_bar)
-        top_layout.setContentsMargins(8, 6, 8, 6)
+        top_layout.setContentsMargins(12, 8, 12, 8)
         top_layout.setSpacing(12)
+        top_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         # Left Connection Group
         self.conn_selector = ConnectionSelector(self.connection_service)
@@ -61,16 +63,21 @@ class MainWindow(QMainWindow):
         # Center Execution Group
         center_toolbar = QWidget()
         center_toolbar.setObjectName("toolbar_group")
+        center_toolbar.setFixedHeight(36)
         center_layout = QHBoxLayout(center_toolbar)
-        center_layout.setContentsMargins(4, 2, 4, 2)
+        center_layout.setContentsMargins(3, 2, 3, 2)
         center_layout.setSpacing(6)
+        center_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         btn_execute = QPushButton("▶️ Ejecutar")
         btn_execute.setObjectName("btn_execute")
+        btn_execute.setFixedHeight(30)
         btn_execute.setToolTip("Ejecutar consulta activa (Ctrl+Enter)")
 
         btn_new_query = QPushButton("➕ Nueva Consulta")
         btn_er_diagram = QPushButton("🗺️ Diagrama ER")
+        btn_new_query.setFixedHeight(30)
+        btn_er_diagram.setFixedHeight(30)
 
         btn_execute.clicked.connect(self.execute_current_query)
         btn_new_query.clicked.connect(self.add_new_query_tab)
@@ -140,7 +147,7 @@ class MainWindow(QMainWindow):
         dialog = ConnectionDialog(
             profile=None, connection_service=self.connection_service, parent=self
         )
-        if dialog.exec_() == ConnectionDialog.DialogCode.Accepted:
+        if dialog.exec() == ConnectionDialog.DialogCode.Accepted:
             self.conn_selector.refresh_profiles()
 
     def open_edit_connection_dialog(self) -> None:
@@ -151,7 +158,7 @@ class MainWindow(QMainWindow):
         dialog = ConnectionDialog(
             profile=profile, connection_service=self.connection_service, parent=self
         )
-        if dialog.exec_() == ConnectionDialog.DialogCode.Accepted:
+        if dialog.exec() == ConnectionDialog.DialogCode.Accepted:
             self.conn_selector.refresh_profiles()
 
     def add_new_query_tab(self, initial_sql: str = "") -> SqlEditorWidget:

@@ -1,6 +1,6 @@
 """Connection Selector Dropdown Component with Profile Management Actions."""
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from backend_ide.application.connection_service import ConnectionService
@@ -16,20 +16,27 @@ class ConnectionSelector(QWidget):
 
     def __init__(self, connection_service: ConnectionService | None = None, parent=None) -> None:
         super().__init__(parent)
+        self.setFixedHeight(36)
         self.service = connection_service or ConnectionService()
         self._profiles: list[ConnectionProfile] = []
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(4, 0, 4, 0)
-        layout.setSpacing(6)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self.btn_new = QPushButton("🔌 Nueva Conexión")
         self.btn_new.setObjectName("btn_new_conn")
+        self.btn_new.setFixedHeight(30)
         self.btn_new.setToolTip("Abrir diálogo para crear una nueva conexión a base de datos")
 
         label = QLabel("Perfil:")
         self.combo = QComboBox()
+        self.combo.setFixedHeight(30)
+        self.combo.setMinimumWidth(220)
         self.env_badge = QLabel(" [DEV] ")
+        self.env_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.env_badge.setFixedSize(58, 24)
 
         badge_style = (
             "background-color: #89b4fa; color: #181825; "
@@ -38,17 +45,18 @@ class ConnectionSelector(QWidget):
         self.env_badge.setStyleSheet(badge_style)
 
         self.btn_edit = QPushButton("⚙️ Editar")
+        self.btn_edit.setFixedHeight(30)
         self.btn_edit.setToolTip("Editar parámetros de la conexión seleccionada")
 
         self.btn_new.clicked.connect(self.new_connection_requested.emit)
         self.btn_edit.clicked.connect(self.edit_connection_requested.emit)
         self.combo.currentIndexChanged.connect(self._on_connection_changed)
 
-        layout.addWidget(self.btn_new)
-        layout.addWidget(label)
-        layout.addWidget(self.combo)
-        layout.addWidget(self.env_badge)
-        layout.addWidget(self.btn_edit)
+        layout.addWidget(self.btn_new, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.combo, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.env_badge, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.btn_edit, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         self.refresh_profiles()
 

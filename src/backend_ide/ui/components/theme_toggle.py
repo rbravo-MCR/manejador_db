@@ -11,6 +11,7 @@ class ThemeToggleButton(QPushButton):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("theme_toggle_btn")
+        self.setFixedHeight(30)
         self.setToolTip("Quick Light/Dark Theme Toggle (☀️ / 🌙)")
         self.clicked.connect(self._on_clicked)
 

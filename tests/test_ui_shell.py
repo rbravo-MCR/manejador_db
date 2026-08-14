@@ -3,6 +3,7 @@
 import os
 
 import pytest
+from PySide6.QtWidgets import QDialog, QWidget
 
 from backend_ide.ui.app import create_app
 from backend_ide.ui.theme import ThemeManager, ThemeMode
@@ -30,6 +31,30 @@ def test_main_window_creation(app_instance, qtbot):
     assert window.explorer_widget is not None
     assert window.tabs_workspace.count() == 1
     assert window.status_bar is not None
+
+
+def test_header_rows_stay_compact_and_controls_are_vertically_aligned(app_instance, qtbot):
+    """Prevent toolbar labels from stretching into oversized vertical blocks."""
+    app, window = app_instance
+    qtbot.addWidget(window)
+    window.show()
+    app.processEvents()
+
+    top_bar = window.findChild(QWidget, "top_bar")
+    assert top_bar is not None
+    assert top_bar.height() <= 56
+    assert window.breadcrumb_bar.height() <= 36
+
+    controls = [
+        window.conn_selector.btn_new,
+        window.conn_selector.combo,
+        window.conn_selector.env_badge,
+        window.conn_selector.btn_edit,
+    ]
+    assert all(control.height() <= 36 for control in controls)
+
+    vertical_centers = [control.mapTo(top_bar, control.rect().center()).y() for control in controls]
+    assert max(vertical_centers) - min(vertical_centers) <= 2
 
 
 def test_theme_toggle_functionality(app_instance, qtbot):
@@ -63,3 +88,16 @@ def test_workspace_tabs_management(app_instance, qtbot):
     # Close sole tab (should be prevented)
     window._on_tab_close_requested(0)
     assert window.tabs_workspace.count() == 1
+
+
+def test_opening_new_connection_keeps_main_window_alive(app_instance, qtbot, monkeypatch):
+    """Opening and cancelling the modal must never close the desktop application."""
+    app, window = app_instance
+    qtbot.addWidget(window)
+    window.show()
+    app.processEvents()
+
+    monkeypatch.setattr(QDialog, "exec", lambda _dialog: QDialog.DialogCode.Rejected)
+    window.open_new_connection_dialog()
+
+    assert window.isVisible()

@@ -1,5 +1,7 @@
 """PySide6 Dialog for Creating and Editing Database Connection Profiles."""
 
+import qtawesome as qta
+from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -13,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.domain.connection import ConnectionProfile, Environment
+from backend_ide.infrastructure.database.connection_test_worker import ConnectionTestWorker
 
 
 class ConnectionDialog(QDialog):
@@ -28,11 +31,13 @@ class ConnectionDialog(QDialog):
         self.profile = profile or ConnectionProfile(name="Nueva Conexión", engine="postgresql")
         self.service = connection_service or ConnectionService()
         self.password: str | None = None
+        self._thread_pool = QThreadPool.globalInstance()
+        self._connection_test_worker: ConnectionTestWorker | None = None
 
         self.setWindowTitle(
             "Editar Conexión a Base de Datos" if profile else "Nueva Conexión a Base de Datos"
         )
-        self.resize(500, 440)
+        self.resize(520, 500)
         self._setup_ui()
         self._load_profile_data()
 
@@ -63,6 +68,21 @@ class ConnectionDialog(QDialog):
         self.txt_password = QLineEdit()
         self.txt_password.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_password.setPlaceholderText("••••••••")
+        self.password_visibility_action = self.txt_password.addAction(
+            qta.icon("fa6s.eye-slash", color="#a6adc8"),
+            QLineEdit.ActionPosition.TrailingPosition,
+        )
+        self.password_visibility_action.setText("Mostrar contraseña")
+        self.password_visibility_action.setToolTip("Mostrar contraseña")
+        self.password_visibility_action.triggered.connect(self._toggle_password_visibility)
+
+        self.cmb_ssl = QComboBox()
+        self.cmb_ssl.addItem("Require — SSL obligatorio", "require")
+        self.cmb_ssl.addItem("Prefer — usar SSL si está disponible", "prefer")
+        self.cmb_ssl.addItem("None — sin SSL", "disable")
+        self.cmb_ssl.setToolTip(
+            "Amazon RDS normalmente requiere 'Require'. 'None' se envía como sslmode=disable."
+        )
 
         self.cmb_env = QComboBox()
         self.cmb_env.addItem("Desarrollo (Development)", Environment.DEVELOPMENT.value)
@@ -84,6 +104,7 @@ class ConnectionDialog(QDialog):
         form_layout.addRow("Base de Datos:", self.txt_database)
         form_layout.addRow("Usuario:", self.txt_username)
         form_layout.addRow("Contraseña:", self.txt_password)
+        form_layout.addRow("SSL mode:", self.cmb_ssl)
         form_layout.addRow("Entorno:", self.cmb_env)
         form_layout.addRow("Color de Etiqueta:", self.cmb_color)
 
@@ -92,6 +113,7 @@ class ConnectionDialog(QDialog):
         # Feedback label
         self.lbl_status = QLabel("")
         self.lbl_status.setStyleSheet("font-weight: bold;")
+        self.lbl_status.setWordWrap(True)
         layout.addWidget(self.lbl_status)
 
         # Action Buttons
@@ -113,6 +135,22 @@ class ConnectionDialog(QDialog):
 
         layout.addLayout(btn_layout)
 
+    def _toggle_password_visibility(self) -> None:
+        """Reveal or protect the password and keep the action state synchronized."""
+        is_protected = self.txt_password.echoMode() == QLineEdit.EchoMode.Password
+        if is_protected:
+            self.txt_password.setEchoMode(QLineEdit.EchoMode.Normal)
+            label = "Ocultar contraseña"
+            icon_name = "fa6s.eye"
+        else:
+            self.txt_password.setEchoMode(QLineEdit.EchoMode.Password)
+            label = "Mostrar contraseña"
+            icon_name = "fa6s.eye-slash"
+
+        self.password_visibility_action.setIcon(qta.icon(icon_name, color="#a6adc8"))
+        self.password_visibility_action.setText(label)
+        self.password_visibility_action.setToolTip(label)
+
     def _load_profile_data(self) -> None:
         """Load values from profile object into UI controls."""
         self.txt_name.setText(self.profile.name)
@@ -131,6 +169,10 @@ class ConnectionDialog(QDialog):
         if idx_env >= 0:
             self.cmb_env.setCurrentIndex(idx_env)
 
+        idx_ssl = self.cmb_ssl.findData(self.profile.ssl_mode)
+        if idx_ssl >= 0:
+            self.cmb_ssl.setCurrentIndex(idx_ssl)
+
         existing_pwd = self.service.get_password(self.profile.id)
         if existing_pwd:
             self.txt_password.setText(existing_pwd)
@@ -148,28 +190,81 @@ class ConnectionDialog(QDialog):
 
         self.profile.database = self.txt_database.text().strip() or "postgres"
         self.profile.username = self.txt_username.text().strip() or "postgres"
+        self.profile.ssl_mode = self.cmb_ssl.currentData()
         self.profile.environment = Environment(self.cmb_env.currentData())
         self.profile.color = self.cmb_color.currentData()
         self.password = self.txt_password.text()
 
         return self.profile
 
+    def _validate_required_fields(self) -> bool:
+        """Mark missing or invalid connection values before any network operation."""
+        required_fields = (
+            ("Nombre de Conexión", self.txt_name),
+            ("Host / Servidor", self.txt_host),
+            ("Puerto", self.txt_port),
+            ("Base de Datos", self.txt_database),
+            ("Usuario", self.txt_username),
+        )
+        invalid_names: list[str] = []
+        invalid_style = "border: 1px solid #f38ba8;"
+
+        for label, field in required_fields:
+            field.setStyleSheet("")
+            if not field.text().strip():
+                invalid_names.append(label)
+                field.setStyleSheet(invalid_style)
+
+        port_text = self.txt_port.text().strip()
+        if port_text:
+            try:
+                port = int(port_text)
+                port_is_valid = 1 <= port <= 65535
+            except ValueError:
+                port_is_valid = False
+            if not port_is_valid:
+                if "Puerto" not in invalid_names:
+                    invalid_names.append("Puerto")
+                self.txt_port.setStyleSheet(invalid_style)
+
+        if not invalid_names:
+            return True
+
+        self.lbl_status.setText(f"Completa o corrige: {', '.join(invalid_names)}.")
+        self.lbl_status.setStyleSheet("color: #f38ba8; font-weight: bold;")
+        return False
+
     def _on_test_clicked(self) -> None:
-        """Execute connection health test."""
+        """Execute the connection health test without blocking the desktop UI."""
+        if not self._validate_required_fields():
+            return
         profile = self._extract_profile_data()
         self.lbl_status.setText("Probando conexión...")
         self.lbl_status.setStyleSheet("color: #89b4fa; font-weight: bold;")
+        self.btn_test.setEnabled(False)
+        self.btn_test.setText("Probando…")
 
-        ok = self.service.test_connection(profile, self.password)
+        worker = ConnectionTestWorker(lambda: self.service.test_connection(profile, self.password))
+        worker.signals.finished.connect(self._on_test_finished)
+        self._connection_test_worker = worker
+        self._thread_pool.start(worker)
+
+    def _on_test_finished(self, ok: bool) -> None:
+        """Restore controls and show the connection test result."""
+        self.btn_test.setEnabled(True)
+        self.btn_test.setText("⚡ Probar Conexión")
         if ok:
             self.lbl_status.setText("✅ ¡Conexión Exitosa!")
             self.lbl_status.setStyleSheet("color: #a6e3a1; font-weight: bold;")
         else:
             self.lbl_status.setText("❌ ¡Error de Conexión! (Revisar host/puerto/credenciales)")
             self.lbl_status.setStyleSheet("color: #f38ba8; font-weight: bold;")
+        self._connection_test_worker = None
 
     def _on_save_clicked(self) -> None:
         """Save connection profile and close dialog."""
+        if not self._validate_required_fields():
+            return
         profile = self._extract_profile_data()
         self.service.save_profile(profile, self.password)
         self.accept()

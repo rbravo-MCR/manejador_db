@@ -1,7 +1,7 @@
 """Unit and Mock Integration tests for Phase 2 - PostgreSQL Inspector."""
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from backend_ide.domain.schema.enums import ForeignKeyAction, NormalizedDataType
 from backend_ide.infrastructure.database.contracts import ConnectionConfig
@@ -47,6 +47,22 @@ def test_postgresql_connection_dsn_building():
     assert "user=db_user" in dsn
     assert "password=secret_password" in dsn
     assert "sslmode=require" in dsn
+
+
+def test_postgresql_connection_uses_a_bounded_connect_timeout():
+    """A dead host must stop trying quickly instead of freezing the desktop UI."""
+    config = ConnectionConfig(engine="postgresql", host="db.example.com")
+    conn = PostgreSQLConnection(config)
+    driver_connection = MagicMock()
+    driver_connection.closed = False
+
+    with patch(
+        "backend_ide.infrastructure.database.postgresql.connection.psycopg.connect",
+        return_value=driver_connection,
+    ) as connect:
+        conn.connect()
+
+    assert connect.call_args.kwargs["connect_timeout"] == 8
 
 
 def test_postgresql_inspector_mocked_inspection():

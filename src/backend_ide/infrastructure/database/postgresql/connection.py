@@ -44,7 +44,12 @@ class PostgreSQLConnection:
             port=self.config.port,
             database=self.config.database,
         )
-        self._connection = psycopg.connect(dsn, row_factory=dict_row, autocommit=True)
+        self._connection = psycopg.connect(
+            dsn,
+            row_factory=dict_row,
+            autocommit=True,
+            connect_timeout=8,
+        )
 
     def disconnect(self) -> None:
         """Close connection to PostgreSQL."""
