@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "backend-ide"
+version = "0.1.0"
+description = "A professional desktop Backend Development IDE centered on relational databases, schema intelligence, SQL productivity, code generation, and legacy modernization."
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "MIT" }
+authors = [
+    { name = "Backend Development IDE Team" }
+]
+keywords = ["database", "ide", "pyside6", "sql", "code-generator", "schema-diff", "erd"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "Topic :: Software Development :: Code Generators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+]
+
+dependencies = [
+    "pyside6>=6.8.0",
+    "scintilla",
+    "psycopg>=3.2.0",
+    "pymysql>=1.1.0",
+    "pyodbc>=5.1.0",
+    "sqlalchemy>=2.0.0",
+    "pydantic>=2.10.0",
+    "jinja2>=3.1.0",
+    "sqlglot>=26.0.0",
+    "rapidfuzz>=3.10.0",
+    "keyring>=25.5.0",
+    "structlog>=24.4.0",
+    "pyqt6-qscintilla>=2.14.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-qt>=4.4.0",
+    "ruff>=0.9.0",
+    "maturin>=1.8.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/backend_ide"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-v --import-mode=importlib"
