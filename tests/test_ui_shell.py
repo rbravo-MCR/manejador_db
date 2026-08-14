@@ -4,13 +4,14 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QDialog, QWidget
 
 from backend_ide.domain.connection import ConnectionProfile
 from backend_ide.domain.schema import DatabaseSchema, Schema, Table
 from backend_ide.infrastructure.database.schema_inspection_worker import DatabaseInspectionResult
 from backend_ide.ui.app import create_app
-from backend_ide.ui.theme import ThemeManager, ThemeMode
+from backend_ide.ui.theme import DARK_PALETTE, LIGHT_PALETTE, ThemeManager, ThemeMode
 from backend_ide.ui.views.main_window import MainWindow
 
 # Set offscreen platform plugin for headless CI testing
@@ -81,6 +82,34 @@ def test_theme_toggle_functionality(app_instance, qtbot):
 
     assert manager.current_mode == ThemeMode.LIGHT
     assert "Dark" in window.theme_toggle.text()
+
+
+def test_theme_manager_persists_all_documented_modes(qapp, tmp_path):
+    """Removing persistence for any documented appearance mode must fail."""
+    settings_path = tmp_path / "theme.ini"
+    settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings=settings)
+
+    for mode in (ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK):
+        manager.set_mode(mode)
+        assert manager.current_mode == mode
+        assert settings.value("appearance/theme") == mode.value
+
+    restored = ThemeManager(settings=QSettings(str(settings_path), QSettings.Format.IniFormat))
+    assert restored.current_mode == ThemeMode.DARK
+
+
+def test_system_theme_resolves_to_a_concrete_palette(qapp, tmp_path):
+    """Treating System as a stored Dark choice must fail this behavior contract."""
+    settings = QSettings(str(tmp_path / "system.ini"), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings=settings)
+
+    manager.set_mode(ThemeMode.SYSTEM)
+
+    assert manager.current_mode == ThemeMode.SYSTEM
+    assert manager.resolved_mode in (ThemeMode.LIGHT, ThemeMode.DARK)
+    expected = LIGHT_PALETTE if manager.resolved_mode == ThemeMode.LIGHT else DARK_PALETTE
+    assert manager.current_palette == expected
 
 
 def test_workspace_tabs_management(app_instance, qtbot):

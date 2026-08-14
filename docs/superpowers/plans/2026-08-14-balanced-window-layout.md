@@ -33,7 +33,7 @@
 - Consumes: `ThemeMode`, `DARK_PALETTE`, `LIGHT_PALETTE`, `QApplication.styleHints()`.
 - Produces: `ThemeManager(settings: QSettings | None = None)`, `resolved_mode`, `set_mode(mode: ThemeMode, *, persist: bool = True)`, and `toggle_theme()`.
 
-- [ ] **Step 1: Write failing tests for persistence and system resolution**
+- [x] **Step 1: Write failing tests for persistence and system resolution**
 
 Add imports for `QSettings` and the palettes, then add:
 
@@ -64,13 +64,13 @@ def test_system_theme_resolves_to_a_concrete_palette(qapp, tmp_path):
     assert manager.current_palette == expected
 ```
 
-- [ ] **Step 2: Run the tests and verify failure**
+- [x] **Step 2: Run the tests and verify failure**
 
 Run: `uv run pytest tests/test_ui_shell.py -k 'theme_manager_persists or system_theme_resolves' -v`
 
 Expected: FAIL because `ThemeManager` does not accept settings, does not preserve `SYSTEM`, and has no `resolved_mode`.
 
-- [ ] **Step 3: Implement settings, selected mode, and resolved mode**
+- [x] **Step 3: Implement settings, selected mode, and resolved mode**
 
 Implement this shape in `ThemeManager`:
 
@@ -119,13 +119,13 @@ def toggle_theme(self) -> ThemeMode:
 
 Connect `QApplication.styleHints().colorSchemeChanged` once so a selected `SYSTEM` mode reapplies the resolved palette when the OS appearance changes.
 
-- [ ] **Step 4: Run focused and existing theme tests**
+- [x] **Step 4: Run focused and existing theme tests**
 
 Run: `uv run pytest tests/test_ui_shell.py -k theme -v`
 
 Expected: PASS, including the existing text-button quick-toggle test, which remains compatible until Task 2 replaces that component.
 
-- [ ] **Step 5: Commit the theme manager**
+- [x] **Step 5: Commit the theme manager**
 
 ```bash
 git add src/backend_ide/ui/theme/manager.py tests/test_ui_shell.py
