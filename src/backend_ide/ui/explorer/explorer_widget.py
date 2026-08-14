@@ -1,8 +1,10 @@
 """Database Explorer Widget with Search Filter, Header Action Bar, and Context Actions."""
 
+import qtawesome as qta
 from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -24,6 +26,8 @@ class DatabaseExplorerWidget(QWidget):
     query_requested = Signal(str)  # Emits generated SQL query string
     structure_requested = Signal(str, str)  # Emits (schema_name, table_name)
     refresh_requested = Signal()
+    database_changed = Signal(str)
+    add_connection_requested = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -46,23 +50,70 @@ class DatabaseExplorerWidget(QWidget):
         lbl_title = QLabel("DATABASE EXPLORER")
         lbl_title.setStyleSheet("font-weight: bold; font-size: 11px; color: #a6adc8;")
 
-        btn_refresh = QPushButton("🔄")
-        btn_refresh.setToolTip("Refrescar Esquemas")
-        btn_refresh.setStyleSheet("padding: 2px 6px; font-size: 11px;")
-        btn_refresh.clicked.connect(self.refresh_requested.emit)
-
         header_layout.addWidget(lbl_title)
         header_layout.addStretch()
-        header_layout.addWidget(btn_refresh)
 
-        # 2. Filter Search Box
+        # 2. Active database selector and compact actions
+        self.database_row = QWidget()
+        database_layout = QHBoxLayout(self.database_row)
+        database_layout.setContentsMargins(0, 0, 0, 0)
+        database_layout.setSpacing(4)
+
+        self.cmb_database = QComboBox()
+        self.cmb_database.setMinimumHeight(28)
+        self.cmb_database.setToolTip("Cambiar la base de datos activa")
+        self.cmb_database.currentTextChanged.connect(self._emit_database_changed)
+
+        self.btn_refresh = QPushButton()
+        self.btn_refresh.setIcon(qta.icon("fa6s.arrows-rotate", color="#a6adc8"))
+        self.btn_refresh.setFixedSize(28, 28)
+        self.btn_refresh.setToolTip("Refrescar estructura")
+        self.btn_refresh.clicked.connect(self.refresh_requested.emit)
+
+        self.btn_add = QPushButton()
+        self.btn_add.setIcon(qta.icon("fa6s.plus", color="#a6adc8"))
+        self.btn_add.setFixedSize(28, 28)
+        self.btn_add.setToolTip("Nueva conexión")
+        self.btn_add.clicked.connect(self.add_connection_requested.emit)
+
+        database_layout.addWidget(self.cmb_database, 1)
+        database_layout.addWidget(self.btn_refresh)
+        database_layout.addWidget(self.btn_add)
+
+        # 3. Filter Search Box
         self.txt_filter = QLineEdit()
         self.txt_filter.setObjectName("search_explorer")
-        self.txt_filter.setPlaceholderText("🔍 Filtrar tablas, vistas, columnas...")
+        self.txt_filter.setPlaceholderText("Filtrar tablas...")
         self.txt_filter.setClearButtonEnabled(True)
+        self.txt_filter.addAction(
+            qta.icon("fa6s.filter", color="#6c7086"),
+            QLineEdit.ActionPosition.TrailingPosition,
+        )
         self.txt_filter.textChanged.connect(self.filter_items)
 
-        # 3. Tree Widget
+        # 4. Entity summary and state feedback
+        entities_row = QWidget()
+        entities_layout = QHBoxLayout(entities_row)
+        entities_layout.setContentsMargins(4, 4, 4, 0)
+        entities_layout.setSpacing(6)
+        lbl_entities = QLabel("ENTIDADES")
+        lbl_entities.setStyleSheet("font-weight: 700; font-size: 11px; color: #cdd6f4;")
+        self.lbl_entities_count = QLabel("0")
+        self.lbl_entities_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_entities_count.setStyleSheet(
+            "background: #45475a; color: #cdd6f4; border-radius: 8px; "
+            "font-size: 10px; padding: 1px 5px;"
+        )
+        entities_layout.addWidget(lbl_entities)
+        entities_layout.addWidget(self.lbl_entities_count)
+        entities_layout.addStretch()
+
+        self.lbl_state = QLabel()
+        self.lbl_state.setWordWrap(True)
+        self.lbl_state.setStyleSheet("color: #f38ba8; padding: 2px 4px;")
+        self.lbl_state.hide()
+
+        # 5. Tree Widget
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -70,38 +121,81 @@ class DatabaseExplorerWidget(QWidget):
         self.tree.itemExpanded.connect(self._on_item_expanded)
 
         layout.addWidget(header)
+        layout.addWidget(self.database_row)
         layout.addWidget(self.txt_filter)
+        layout.addWidget(entities_row)
+        layout.addWidget(self.lbl_state)
         layout.addWidget(self.tree)
+
+    def _emit_database_changed(self, database_name: str) -> None:
+        """Emit only meaningful database selections."""
+        if database_name:
+            self.database_changed.emit(database_name)
+
+    def set_databases(self, database_names: list[str] | tuple[str, ...], selected: str) -> None:
+        """Replace database selector values without triggering a connection switch."""
+        self.cmb_database.blockSignals(True)
+        self.cmb_database.clear()
+        self.cmb_database.addItems(list(database_names))
+        selected_index = self.cmb_database.findText(selected)
+        if selected_index >= 0:
+            self.cmb_database.setCurrentIndex(selected_index)
+        self.cmb_database.blockSignals(False)
+
+    def set_controls_enabled(self, enabled: bool) -> None:
+        """Prevent overlapping refreshes and database switches."""
+        self.cmb_database.setEnabled(enabled)
+        self.btn_refresh.setEnabled(enabled)
+        self.btn_add.setEnabled(enabled)
+
+    def set_loading(self, preserve_tree: bool = False) -> None:
+        """Show progress during first load while preserving useful refreshed data."""
+        self.lbl_state.setText("Cargando estructura…")
+        self.lbl_state.setStyleSheet("color: #89b4fa; padding: 2px 4px;")
+        self.lbl_state.show()
+        if not preserve_tree:
+            self.tree.clear()
+            QTreeWidgetItem(self.tree, ["Cargando estructura…"])
+            self.lbl_entities_count.setText("0")
+
+    def show_error(self, message: str, preserve_tree: bool = False) -> None:
+        """Show an actionable failure without erasing the last successful tree."""
+        self.lbl_state.setText(message)
+        self.lbl_state.setStyleSheet("color: #f38ba8; padding: 2px 4px;")
+        self.lbl_state.show()
+        if not preserve_tree:
+            self.tree.clear()
+            QTreeWidgetItem(self.tree, [message])
+            self.lbl_entities_count.setText("0")
 
     def load_schema_model(self, connection_name: str, schema_model: DatabaseSchema) -> None:
         """Populate explorer tree from Universal Schema Model."""
         self._schema_model = schema_model
         self.tree.clear()
-
-        conn_item = ExplorerTreeItem(
-            ExplorerNodeType.CONNECTION,
-            connection_name,
-            node_data={"engine": schema_model.engine_name},
-        )
-        db_item = ExplorerTreeItem(
-            ExplorerNodeType.DATABASE,
-            schema_model.database_name,
-            parent=conn_item,
-        )
+        self.lbl_state.hide()
+        table_count = sum(len(schema.tables) for schema in schema_model.schemas)
+        self.lbl_entities_count.setText(str(table_count))
 
         for s in schema_model.schemas:
             schema_item = ExplorerTreeItem(
                 ExplorerNodeType.SCHEMA,
                 s.name,
                 node_data={"schema_name": s.name},
-                parent=db_item,
             )
-            # Add dummy child to show expand arrow for lazy loading
-            QTreeWidgetItem(schema_item, ["Loading..."])
+            schema_item.is_loaded = True
+            for table in s.tables:
+                ExplorerTreeItem(
+                    ExplorerNodeType.TABLE,
+                    table.name,
+                    node_data={"schema": s.name, "table": table.name},
+                    parent=schema_item,
+                )
+            self.tree.addTopLevelItem(schema_item)
 
-        self.tree.addTopLevelItem(conn_item)
-        conn_item.setExpanded(True)
-        db_item.setExpanded(True)
+        if self.tree.topLevelItemCount() == 0:
+            QTreeWidgetItem(self.tree, ["No hay esquemas visibles"])
+        else:
+            self.tree.topLevelItem(0).setExpanded(True)
 
     def _on_item_expanded(self, item: QTreeWidgetItem) -> None:
         """Handle lazy loading on item expansion."""
@@ -190,20 +284,28 @@ class DatabaseExplorerWidget(QWidget):
             table_name = item.node_data.get("table", "")
             qual_name = f"{schema_name}.{table_name}"
 
-            act_open_data = menu.addAction("📊 Abrir Datos (SELECT 100)")
-            act_open_struct = menu.addAction("🔍 Ver Estructura")
+            act_open_data = menu.addAction(
+                qta.icon("fa6s.table", color="#89b4fa"), "Abrir datos (SELECT 100)"
+            )
+            act_open_struct = menu.addAction(
+                qta.icon("fa6s.circle-info", color="#a6adc8"), "Ver estructura"
+            )
             menu.addSeparator()
 
-            menu_gen = menu.addMenu("📝 Generar Consulta SQL")
+            menu_gen = QMenu("Generar consulta SQL", menu)
+            menu_gen.setIcon(qta.icon("fa6s.code", color="#cba6f7"))
+            menu.addMenu(menu_gen)
             act_gen_select = menu_gen.addAction("SELECT")
             act_gen_insert = menu_gen.addAction("INSERT")
             act_gen_update = menu_gen.addAction("UPDATE")
             act_gen_delete = menu_gen.addAction("DELETE")
 
             menu.addSeparator()
-            act_copy = menu.addAction("📋 Copiar Nombre de Tabla")
+            act_copy = menu.addAction(
+                qta.icon("fa6s.copy", color="#a6adc8"), "Copiar nombre de tabla"
+            )
 
-            action = menu.exec_(self.tree.viewport().mapToGlobal(pos))
+            action = menu.exec(self.tree.viewport().mapToGlobal(pos))
 
             if action == act_open_data:
                 self.query_requested.emit(f"SELECT * FROM {qual_name} LIMIT 100;")
@@ -221,8 +323,10 @@ class DatabaseExplorerWidget(QWidget):
                 QApplication.clipboard().setText(qual_name)
 
         elif item.node_type in (ExplorerNodeType.CONNECTION, ExplorerNodeType.SCHEMA):
-            act_refresh = menu.addAction("🔄 Refrescar Metadatos")
-            action = menu.exec_(self.tree.viewport().mapToGlobal(pos))
+            act_refresh = menu.addAction(
+                qta.icon("fa6s.arrows-rotate", color="#a6adc8"), "Refrescar metadatos"
+            )
+            action = menu.exec(self.tree.viewport().mapToGlobal(pos))
             if action == act_refresh:
                 self.refresh_requested.emit()
 

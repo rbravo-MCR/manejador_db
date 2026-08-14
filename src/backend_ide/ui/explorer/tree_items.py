@@ -3,6 +3,7 @@
 from enum import StrEnum
 from typing import Any
 
+import qtawesome as qta
 from PySide6.QtWidgets import QTreeWidgetItem
 
 
@@ -41,33 +42,23 @@ class ExplorerTreeItem(QTreeWidgetItem):
         self._setup_appearance()
 
     def _setup_appearance(self) -> None:
-        """Assign icons or prefixes based on node type."""
-        label = self.text(0)
-        prefix_map = {
-            ExplorerNodeType.CONNECTION: "🔌 ",
-            ExplorerNodeType.DATABASE: "🗄️ ",
-            ExplorerNodeType.SCHEMA: "📦 ",
-            ExplorerNodeType.TABLE_GROUP: "📁 Tables",
-            ExplorerNodeType.TABLE: "📋 ",
-            ExplorerNodeType.VIEW_GROUP: "📁 Views",
-            ExplorerNodeType.VIEW: "👁️ ",
-            ExplorerNodeType.FUNCTION_GROUP: "📁 Functions",
-            ExplorerNodeType.FUNCTION: "⚡ ",
-            ExplorerNodeType.PROCEDURE_GROUP: "📁 Procedures",
-            ExplorerNodeType.PROCEDURE: "⚙️ ",
-            ExplorerNodeType.TRIGGER_GROUP: "📁 Triggers",
-            ExplorerNodeType.TRIGGER: "🔔 ",
+        """Assign compact library icons matching a professional database navigator."""
+        icon_map = {
+            ExplorerNodeType.CONNECTION: ("fa6s.plug", "#89b4fa"),
+            ExplorerNodeType.DATABASE: ("fa6s.database", "#89b4fa"),
+            ExplorerNodeType.SCHEMA: ("fa6s.folder", "#a6adc8"),
+            ExplorerNodeType.TABLE_GROUP: ("fa6s.folder", "#a6adc8"),
+            ExplorerNodeType.TABLE: ("fa6s.table-cells", "#f9e2af"),
+            ExplorerNodeType.VIEW_GROUP: ("fa6s.folder", "#a6adc8"),
+            ExplorerNodeType.VIEW: ("fa6s.eye", "#89b4fa"),
+            ExplorerNodeType.FUNCTION_GROUP: ("fa6s.folder", "#a6adc8"),
+            ExplorerNodeType.FUNCTION: ("fa6s.bolt", "#f9e2af"),
+            ExplorerNodeType.PROCEDURE_GROUP: ("fa6s.folder", "#a6adc8"),
+            ExplorerNodeType.PROCEDURE: ("fa6s.gears", "#a6adc8"),
+            ExplorerNodeType.TRIGGER_GROUP: ("fa6s.folder", "#a6adc8"),
+            ExplorerNodeType.TRIGGER: ("fa6s.bell", "#f9e2af"),
         }
-
-        prefix = prefix_map.get(self.node_type)
-        if prefix and not label.startswith(prefix):
-            if self.node_type in (
-                ExplorerNodeType.TABLE_GROUP,
-                ExplorerNodeType.VIEW_GROUP,
-                ExplorerNodeType.FUNCTION_GROUP,
-                ExplorerNodeType.PROCEDURE_GROUP,
-                ExplorerNodeType.TRIGGER_GROUP,
-            ):
-                self.setText(0, prefix)
-            else:
-                self.setText(0, f"{prefix}{label}")
+        icon_spec = icon_map.get(self.node_type)
+        if icon_spec:
+            icon_name, color = icon_spec
+            self.setIcon(0, qta.icon(icon_name, color=color))
