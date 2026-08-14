@@ -96,6 +96,25 @@ def test_workspace_tabs_management(app_instance, qtbot):
     assert window.tabs_workspace.count() == 1
 
 
+def test_execute_uses_active_connection_and_displays_real_rows(qtbot):
+    """Executing SQL must show rows returned by the active database, never demo data."""
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    connection = MagicMock()
+    connection.execute_query.return_value = [{"answer": 42}]
+    window._active_connection = connection
+    editor = window.tabs_workspace.currentWidget()
+    editor.set_sql_text("SELECT 42 AS answer;")
+
+    window.execute_current_query()
+
+    assert pool.worker is not None
+    pool.worker.run()
+    assert window.results_widget.table_model.rowCount() == 1
+    assert window.results_widget.table_model.item(0, 0).text() == "42"
+
+
 def test_opening_new_connection_keeps_main_window_alive(app_instance, qtbot, monkeypatch):
     """Opening and cancelling the modal must never close the desktop application."""
     app, window = app_instance

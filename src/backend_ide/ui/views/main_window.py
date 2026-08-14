@@ -18,7 +18,7 @@ from backend_ide import __version__
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.application.query_service import ExecuteQueryService
 from backend_ide.domain.connection import ConnectionProfile
-from backend_ide.domain.sql import ColumnMetadata, QueryResult
+from backend_ide.domain.sql import QueryRequest, QueryResult
 from backend_ide.infrastructure.database.contracts import DatabaseConnection
 from backend_ide.infrastructure.database.schema_inspection_worker import (
     DatabaseInspectionResult,
@@ -51,9 +51,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"Backend Development IDE v{__version__}")
         self.resize(1340, 840)
 
-        self.connection_service = connection_service or ConnectionService()
-        self.query_service = ExecuteQueryService()
         self._thread_pool = thread_pool or QThreadPool.globalInstance()
+        self.connection_service = connection_service or ConnectionService()
+        self.query_service = ExecuteQueryService(self._thread_pool)
         self._active_profile: ConnectionProfile | None = None
         self._active_database: str | None = None
         self._active_connection: DatabaseConnection | None = None
@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
         self._database_names: tuple[str, ...] = ()
         self._inspection_worker: SchemaInspectionWorker | None = None
         self._column_workers: dict[tuple[str, str], TableColumnsWorker] = {}
+        self._query_worker = None
         self._is_inspecting = False
         self._theme_manager = ThemeManager.get_instance()
         self._setup_ui()
@@ -100,20 +101,20 @@ class MainWindow(QMainWindow):
         center_layout.setSpacing(6)
         center_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        btn_execute = QPushButton("▶️ Ejecutar")
-        btn_execute.setObjectName("btn_execute")
-        btn_execute.setFixedHeight(30)
-        btn_execute.setToolTip("Ejecutar consulta activa (Ctrl+Enter)")
+        self.btn_execute = QPushButton("▶️ Ejecutar")
+        self.btn_execute.setObjectName("btn_execute")
+        self.btn_execute.setFixedHeight(30)
+        self.btn_execute.setToolTip("Ejecutar consulta activa (Ctrl+Enter)")
 
         btn_new_query = QPushButton("➕ Nueva Consulta")
         btn_er_diagram = QPushButton("🗺️ Diagrama ER")
         btn_new_query.setFixedHeight(30)
         btn_er_diagram.setFixedHeight(30)
 
-        btn_execute.clicked.connect(self.execute_current_query)
+        self.btn_execute.clicked.connect(self.execute_current_query)
         btn_new_query.clicked.connect(self.add_new_query_tab)
 
-        center_layout.addWidget(btn_execute)
+        center_layout.addWidget(self.btn_execute)
         center_layout.addWidget(btn_new_query)
         center_layout.addWidget(btn_er_diagram)
 
@@ -390,23 +391,25 @@ class MainWindow(QMainWindow):
         sql_text = current_widget.get_sql_text()
         if not sql_text:
             return
+        if self._active_connection is None:
+            self.results_widget.display_result(
+                QueryResult(has_error=True, error_message="Selecciona una conexión activa.")
+            )
+            return
 
-        self.results_output = sql_text
-        dummy_result = QueryResult(
-            columns=[
-                ColumnMetadata(name="id", data_type="INT"),
-                ColumnMetadata(name="name", data_type="VARCHAR"),
-                ColumnMetadata(name="email", data_type="VARCHAR"),
-            ],
-            rows=[
-                {"id": 1, "name": "Alice Developer", "email": "alice@example.com"},
-                {"id": 2, "name": "Bob Architect", "email": "bob@example.com"},
-            ],
-            execution_time_ms=11.8,
-            rows_affected=2,
-            has_error=False,
+        self.btn_execute.setEnabled(False)
+        self.results_widget.lbl_stats.setText("⏳ Ejecutando consulta…")
+        self._query_worker = self.query_service.execute_async(
+            self._active_connection,
+            QueryRequest(sql=sql_text),
+            self._on_query_finished,
         )
-        self.results_widget.display_result(dummy_result)
+
+    def _on_query_finished(self, result: QueryResult) -> None:
+        """Render a real query result and restore the execution action."""
+        self.results_widget.display_result(result)
+        self.btn_execute.setEnabled(True)
+        self._query_worker = None
 
     def _on_query_requested(self, sql_query: str) -> None:
         """Handle generated SQL query emitted by Explorer."""
