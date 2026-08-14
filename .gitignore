@@ -25,6 +25,7 @@ dist/
 *.log
 .agents/
 .codex/
+.worktrees/
 
 # IDE and operating-system files
 .idea/
