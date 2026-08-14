@@ -4,7 +4,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QDialog, QWidget
 
 from backend_ide.domain.connection import ConnectionProfile
@@ -65,7 +65,7 @@ def test_header_rows_stay_compact_and_controls_are_vertically_aligned(app_instan
 
 
 def test_theme_toggle_functionality(app_instance, qtbot):
-    """Test switching Dark/Light theme updates ThemeManager and ToggleButton text."""
+    """The quick toggle must change mode and refresh its accessible description."""
     _, window = app_instance
     qtbot.addWidget(window)
 
@@ -73,7 +73,8 @@ def test_theme_toggle_functionality(app_instance, qtbot):
     manager.set_mode(ThemeMode.DARK)
 
     assert manager.current_mode == ThemeMode.DARK
-    assert "Light" in window.theme_toggle.text()
+    assert "Oscuro" in window.theme_toggle.toolTip()
+    assert not window.theme_toggle.icon().isNull()
 
     # Click toggle button
     qtbot.mouseClick(
@@ -81,7 +82,7 @@ def test_theme_toggle_functionality(app_instance, qtbot):
     )
 
     assert manager.current_mode == ThemeMode.LIGHT
-    assert "Dark" in window.theme_toggle.text()
+    assert "Claro" in window.theme_toggle.toolTip()
 
 
 def test_theme_manager_persists_all_documented_modes(qapp, tmp_path):
@@ -110,6 +111,31 @@ def test_system_theme_resolves_to_a_concrete_palette(qapp, tmp_path):
     assert manager.resolved_mode in (ThemeMode.LIGHT, ThemeMode.DARK)
     expected = LIGHT_PALETTE if manager.resolved_mode == ThemeMode.LIGHT else DARK_PALETTE
     assert manager.current_palette == expected
+
+
+def test_theme_control_exposes_system_light_and_dark(app_instance, qtbot):
+    """Dropping a documented mode or quick-toggle behavior must fail."""
+    _, window = app_instance
+    qtbot.addWidget(window)
+    manager = ThemeManager.get_instance()
+    manager.set_mode(ThemeMode.SYSTEM)
+
+    assert window.theme_toggle.height() == 32
+    assert [action.data() for action in window.theme_toggle.menu().actions()] == [
+        ThemeMode.SYSTEM,
+        ThemeMode.LIGHT,
+        ThemeMode.DARK,
+    ]
+
+    dark_action = next(
+        action for action in window.theme_toggle.menu().actions() if action.data() == ThemeMode.DARK
+    )
+    dark_action.trigger()
+    assert manager.current_mode == ThemeMode.DARK
+    assert dark_action.isChecked()
+
+    qtbot.mouseClick(window.theme_toggle, Qt.MouseButton.LeftButton)
+    assert manager.current_mode == ThemeMode.LIGHT
 
 
 def test_workspace_tabs_management(app_instance, qtbot):

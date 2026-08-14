@@ -187,7 +187,7 @@ class ThemeManager(QObject):
         }}
 
         /* Buttons Design System */
-        QPushButton {{
+        QPushButton, QToolButton {{
             background-color: {p.bg_surface};
             border: 1px solid {p.border};
             color: {p.text_primary};
@@ -197,18 +197,18 @@ class ThemeManager(QObject):
             font-size: 12px;
         }}
 
-        QPushButton:hover {{
+        QPushButton:hover, QToolButton:hover {{
             background-color: {p.bg_hover};
             border-color: {p.accent};
             color: {p.accent};
         }}
 
-        QPushButton:pressed {{
+        QPushButton:pressed, QToolButton:pressed {{
             background-color: {p.accent};
             color: #11111b;
         }}
 
-        QPushButton:disabled {{
+        QPushButton:disabled, QToolButton:disabled {{
             background-color: {p.bg_sidebar};
             color: {p.text_muted};
             border-color: {p.border};
@@ -245,10 +245,9 @@ class ThemeManager(QObject):
             color: #11111b;
         }}
 
-        QPushButton#theme_toggle_btn {{
-            font-size: 13px;
-            padding: 5px 10px;
-            border-radius: 20px;
+        QToolButton#theme_toggle_btn {{
+            padding: 4px;
+            border-radius: 6px;
         }}
 
         /* Input Controls & ComboBox */

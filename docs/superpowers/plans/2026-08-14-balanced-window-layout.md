@@ -145,7 +145,7 @@ git commit -m "feat: persist system light and dark themes"
 - Consumes: `ThemeManager.current_mode`, `ThemeManager.current_palette`, `ThemeManager.set_mode()`, `ThemeManager.toggle_theme()`.
 - Produces: `ThemeToggleButton(QToolButton)` with a main quick-toggle action and a menu containing one checkable action per `ThemeMode`.
 
-- [ ] **Step 1: Write failing interaction tests**
+- [x] **Step 1: Write failing interaction tests**
 
 Replace the text-based toggle test with:
 
@@ -174,13 +174,13 @@ def test_theme_control_exposes_system_light_and_dark(app_instance, qtbot):
     assert manager.current_mode == ThemeMode.LIGHT
 ```
 
-- [ ] **Step 2: Run the interaction test and verify failure**
+- [x] **Step 2: Run the interaction test and verify failure**
 
 Run: `uv run pytest tests/test_ui_shell.py::test_theme_control_exposes_system_light_and_dark -v`
 
 Expected: FAIL because the current control is a text-only `QPushButton` with no menu.
 
-- [ ] **Step 3: Implement the split theme tool button**
+- [x] **Step 3: Implement the split theme tool button**
 
 Change the component to `QToolButton`, set `MenuButtonPopup`, a fixed 32 × 32 size, and a `QMenu` with `Sistema`, `Claro`, and `Oscuro`. Store `ThemeMode` in each action's `data`, make the actions checkable, and call `ThemeManager.set_mode(action.data())` when triggered. The main button calls `toggle_theme()`.
 
@@ -196,17 +196,17 @@ MODE_ICONS = {
 
 On `theme_changed`, refresh the button icon using `current_palette.text_primary`, update the tooltip to name the selected mode, and check exactly one menu action.
 
-- [ ] **Step 4: Centralize QToolButton styling**
+- [x] **Step 4: Centralize QToolButton styling**
 
 Extend the global button selectors in `ThemeManager.generate_stylesheet()` from `QPushButton` to `QPushButton, QToolButton`. Add `QToolButton#theme_toggle_btn` and `QToolButton#icon_button` rules using palette tokens; do not add inline style sheets to the component.
 
-- [ ] **Step 5: Run the theme tests**
+- [x] **Step 5: Run the theme tests**
 
 Run: `uv run pytest tests/test_ui_shell.py -k theme -v`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the theme control**
+- [x] **Step 6: Commit the theme control**
 
 ```bash
 git add src/backend_ide/ui/components/theme_toggle.py src/backend_ide/ui/theme/manager.py tests/test_ui_shell.py
