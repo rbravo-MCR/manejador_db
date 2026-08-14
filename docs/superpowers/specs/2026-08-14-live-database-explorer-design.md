@@ -9,6 +9,11 @@ filter lets the user switch databases without creating duplicate profiles.
 
 ## User Experience
 
+The explorer visually follows the supplied Beekeeper Studio reference at
+`/home/rafael/Imágenes/Capturas de pantalla/Captura desde 2026-08-14 12-38-08.png`:
+a compact database selector with refresh/add actions, a filter immediately below, an uppercase
+entity heading with a count badge, and a dense scrollable schema/table tree.
+
 The successful flow is:
 
 1. The user opens **Nueva Conexión**, enters the profile, tests it, and saves it.
@@ -17,9 +22,9 @@ The successful flow is:
 4. A **Base de datos** dropdown appears below the `DATABASE EXPLORER` title and above its filter.
 5. The dropdown selects the database stored in the profile and lists every non-template database
    for which the PostgreSQL user has `CONNECT` privilege.
-6. The explorer renders `Connection → Database → Schema → Tables → Table` from live metadata.
-7. The connection, database, first schema, and tables group are expanded so the result is visible
-   without another click.
+6. The explorer renders `Schema → Table` because the selected profile and database are already
+   visible above the tree; redundant connection, database, and Tables-group nodes are omitted.
+7. The first schema is expanded so its tables are visible without another click.
 8. The breadcrumb and status bar use the real selected profile, database, and schema instead of
    the current hard-coded local PostgreSQL labels.
 
@@ -73,12 +78,13 @@ and always include the current database when PostgreSQL reports it as connectabl
 
 ### Database Explorer
 
-Add the **Base de datos** dropdown between the explorer title and filter, plus explicit loading,
-empty, and error presentations inside the tree. Loading replaces the tree only when no successful
-model has been loaded yet; refresh and database switching preserve the current tree until a new
-model succeeds. Successful loading expands the hierarchy through the first schema and its Tables
-group. Existing lazy population remains in place for schema contents and refresh replaces the
-cached universal schema model atomically.
+Add the compact **Base de datos** dropdown between the explorer title and filter, with refresh and
+add controls aligned to its right. Add an `ENTIDADES` heading with a total table-count badge and
+explicit loading, empty, and error presentations inside the tree. Loading replaces the tree only
+when no successful model has been loaded yet; refresh and database switching preserve the current
+tree until a new model succeeds. The tree contains schema nodes with their tables directly beneath
+them, and the first schema expands automatically. Use QtAwesome icons matching the reference for
+database, refresh, add, filter, schema, and table; do not use emoji or handcrafted icons.
 
 ### Main window
 
@@ -131,7 +137,8 @@ Automated tests will verify:
 - the dropdown is placed above the explorer filter and selects the profile database;
 - changing the dropdown inspects the selected database without saving another profile;
 - a failed database switch preserves the prior selection, active connection, and tree;
-- successful inspection populates and expands the database/schema/table hierarchy;
+- successful inspection populates schema/table rows directly and expands the first schema;
+- the `ENTIDADES` badge equals the total number of tables in the loaded model;
 - profile selection and refresh trigger inspection without duplicate concurrent work;
 - loading, empty, and failure states are visible and do not close the main window;
 - breadcrumb and status text reflect the live profile and inspected database;

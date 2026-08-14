@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Populate Database Explorer from the live PostgreSQL profile and provide a database dropdown above its filter.
+**Goal:** Populate Database Explorer from the live PostgreSQL profile and match the supplied compact Beekeeper-style database/schema/table navigator.
 
 **Architecture:** `MainWindow` creates a candidate adapter through `ConnectionService` and dispatches a `SchemaInspectionWorker`. The worker uses `PostgreSQLInspector` to discover connectable databases and build the Universal Schema Model; only a successful candidate replaces the active connection and explorer model.
 
@@ -16,6 +16,8 @@
 - Inspect one selected PostgreSQL database at a time.
 - A failed refresh or switch preserves the last successful tree and connection.
 - Query execution wiring and multi-connection pooling remain out of scope.
+- Visual reference: `/home/rafael/Imágenes/Capturas de pantalla/Captura desde 2026-08-14 12-38-08.png`.
+- Use QtAwesome icons in the explorer; do not add emoji, custom SVG, or raster placeholders.
 
 ---
 
@@ -195,7 +197,7 @@ git commit -m "feat: inspect database schema off the ui thread"
 - Modify: `tests/test_database_explorer.py`
 
 **Interfaces:**
-- Produces: `database_changed = Signal(str)`, `cmb_database`, `btn_refresh`, `set_databases(names, selected)`, `set_loading(preserve_tree=False)`, `show_error(message, preserve_tree=False)`, and `set_controls_enabled(enabled)`.
+- Produces: `database_changed = Signal(str)`, `cmb_database`, `btn_refresh`, `btn_add`, `lbl_entities_count`, `set_databases(names, selected)`, `set_loading(preserve_tree=False)`, `show_error(message, preserve_tree=False)`, and `set_controls_enabled(enabled)`.
 - Consumes: `DatabaseSchema` through the existing `load_schema_model()`.
 
 - [ ] **Step 1: Write failing explorer behavior tests**
@@ -214,20 +216,16 @@ def test_database_dropdown_sits_above_filter_and_emits_selection(qtbot):
     assert selected == ["analytics"]
 
 
-def test_loaded_schema_is_expanded_through_tables(qtbot):
+def test_loaded_schema_is_expanded_with_direct_table_rows(qtbot):
     explorer = DatabaseExplorerWidget()
     qtbot.addWidget(explorer)
     explorer.load_schema_model("B2B_OUTLET", create_sample_schema())
 
-    connection = explorer.tree.topLevelItem(0)
-    database = connection.child(0)
-    schema = database.child(0)
-    tables = schema.child(0)
-    assert connection.isExpanded()
-    assert database.isExpanded()
+    schema = explorer.tree.topLevelItem(0)
     assert schema.isExpanded()
-    assert tables.isExpanded()
-    assert tables.childCount() == 2
+    assert schema.childCount() == 2
+    assert "users" in schema.child(0).text(0)
+    assert explorer.lbl_entities_count.text() == "2"
 ```
 
 Add a separate state test asserting that first-load loading/error rows are visible and a refresh
@@ -241,11 +239,12 @@ Expected: FAIL because the dropdown API and automatic expansion do not exist.
 
 - [ ] **Step 3: Implement selector, states, and automatic expansion**
 
-Store the refresh button as `self.btn_refresh`. Insert a labeled `QComboBox` row between the header
-and filter. Block combo signals while `set_databases()` changes its model. In
-`load_schema_model()`, populate the first schema via `_on_item_expanded()`, expand it, then expand
-its first `TABLE_GROUP`. State rows use `QTreeWidgetItem([message])`; preserving states do not clear
-the current model.
+Store refresh/add buttons as `self.btn_refresh` and `self.btn_add`. Insert a compact `QComboBox` row
+between the header and filter, then an `ENTIDADES` heading with a table-count badge above the tree.
+Block combo signals while `set_databases()` changes its model. In `load_schema_model()`, create one
+top-level item per schema and put table rows directly beneath it; expand the first schema. Assign
+QtAwesome database, rotate, plus, filter, folder, and table icons. State rows use
+`QTreeWidgetItem([message])`; preserving states do not clear the current model.
 
 - [ ] **Step 4: Run explorer tests and confirm GREEN**
 
