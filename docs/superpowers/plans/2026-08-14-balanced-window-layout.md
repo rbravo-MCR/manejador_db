@@ -77,6 +77,7 @@ Implement this shape in `ThemeManager`:
 ```python
 SETTINGS_KEY = "appearance/theme"
 
+
 def __init__(self, settings: QSettings | None = None) -> None:
     super().__init__()
     self._settings = settings or QSettings("BackendIDE", "BackendIDE")
@@ -88,9 +89,11 @@ def __init__(self, settings: QSettings | None = None) -> None:
     self._resolved_mode = self._resolve_mode(self._mode)
     self._palette = self._palette_for(self._resolved_mode)
 
+
 @property
 def resolved_mode(self) -> ThemeMode:
     return self._resolved_mode
+
 
 def _resolve_mode(self, mode: ThemeMode) -> ThemeMode:
     if mode != ThemeMode.SYSTEM:
@@ -98,8 +101,10 @@ def _resolve_mode(self, mode: ThemeMode) -> ThemeMode:
     scheme = QApplication.styleHints().colorScheme()
     return ThemeMode.LIGHT if scheme == Qt.ColorScheme.Light else ThemeMode.DARK
 
+
 def _palette_for(self, mode: ThemeMode) -> ThemePalette:
     return LIGHT_PALETTE if mode == ThemeMode.LIGHT else DARK_PALETTE
+
 
 def set_mode(self, mode: ThemeMode, *, persist: bool = True) -> None:
     self._mode = mode
@@ -110,6 +115,7 @@ def set_mode(self, mode: ThemeMode, *, persist: bool = True) -> None:
         self._settings.sync()
     self.apply_theme()
     self.theme_changed.emit(mode.value)
+
 
 def toggle_theme(self) -> ThemeMode:
     new_mode = ThemeMode.LIGHT if self._resolved_mode == ThemeMode.DARK else ThemeMode.DARK
@@ -419,7 +425,7 @@ git commit -m "feat: align explorer and results controls"
 - Consumes: the complete reorganized UI and the traceability matrix in `docs/superpowers/specs/2026-08-14-balanced-window-layout-design.md`.
 - Produces: automated size/regression evidence plus dark/light screenshots at both required window sizes.
 
-- [ ] **Step 1: Add final minimum-size geometry test**
+- [x] **Step 1: Add final minimum-size geometry test**
 
 Add:
 
@@ -444,7 +450,7 @@ def test_documented_window_sizes_have_no_clipped_toolbar_controls(app_instance, 
         assert control.isVisible()
 ```
 
-- [ ] **Step 2: Run all automated checks**
+- [x] **Step 2: Run all automated checks**
 
 Run: `uv run pytest`
 
@@ -458,7 +464,7 @@ Run: `uv run ruff format --check .`
 
 Expected: all files already formatted.
 
-- [ ] **Step 3: Capture the required visual states**
+- [x] **Step 3: Capture the required visual states**
 
 Start the application offscreen with `auto_load_profile=False`, set each of `ThemeMode.DARK` and `ThemeMode.LIGHT`, render at 1340 × 840 and 1100 × 700, and save:
 
@@ -492,18 +498,18 @@ PY
 
 Open all four images and inspect: three-zone top alignment, no clipping, 340 px explorer at initial size, compact explorer header, editor/results 65/35 balance, readable status bar, and correct light/dark contrast.
 
-- [ ] **Step 4: Update visual evidence**
+- [x] **Step 4: Update visual evidence**
 
 Append a `Distribución completa de ventana` section to `design-qa.md` containing the four screenshot paths, viewport sizes, and checklist outcome. State `Sin limitaciones visuales conocidas` only if all four captures pass inspection; otherwise record and fix each concrete defect before continuing. Do not overwrite the prior explorer evidence.
 
-- [ ] **Step 5: Commit verification evidence**
+- [x] **Step 5: Commit verification evidence**
 
 ```bash
 git add tests/test_ui_shell.py design-qa.md
 git commit -m "test: verify balanced window layout"
 ```
 
-- [ ] **Step 6: Audit the implementation against every acceptance criterion**
+- [x] **Step 6: Audit the implementation against every acceptance criterion**
 
 For each row in the design traceability table, cite one automated test, source location, or opened screenshot. Treat missing evidence as incomplete work and fix it before publication.
 

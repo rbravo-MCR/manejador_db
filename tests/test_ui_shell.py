@@ -100,6 +100,27 @@ def test_connection_controls_follow_context_then_actions(app_instance, qtbot):
     assert window.conn_selector.combo.minimumWidth() == 180
 
 
+@pytest.mark.parametrize("size", [(1340, 840), (1100, 700)])
+def test_documented_window_sizes_have_no_clipped_toolbar_controls(app_instance, qtbot, size):
+    """Shrinking to the documented minimum must not clip or overlap toolbar groups."""
+    app, window = app_instance
+    qtbot.addWidget(window)
+    window.resize(*size)
+    window.show()
+    app.processEvents()
+
+    top_rect = window.top_bar.rect()
+    controls = (window.conn_selector, window.query_toolbar, window.theme_toggle)
+    geometries = [control.geometry() for control in controls]
+    for control, rect in zip(controls, geometries, strict=True):
+        assert top_rect.contains(rect.topLeft())
+        assert top_rect.contains(rect.bottomRight())
+        assert control.isVisible()
+
+    assert geometries[0].right() < geometries[1].left()
+    assert geometries[1].right() < geometries[2].left()
+
+
 def test_theme_toggle_functionality(app_instance, qtbot):
     """The quick toggle must change mode and refresh its accessible description."""
     _, window = app_instance
