@@ -226,7 +226,7 @@ git commit -m "feat: add compact three-mode theme control"
 - Consumes: existing connection/query signals and slots without signature changes.
 - Produces: `MainWindow.top_bar`, `MainWindow.query_toolbar`, `MainWindow.btn_new_query`, `MainWindow.btn_er_diagram`, `MainWindow.main_splitter`, and `MainWindow.workspace_splitter` for stable UI tests.
 
-- [ ] **Step 1: Write failing structure and resize tests**
+- [x] **Step 1: Write failing structure and resize tests**
 
 Add:
 
@@ -264,19 +264,19 @@ def test_connection_controls_follow_context_then_actions(app_instance, qtbot):
     assert window.conn_selector.combo.minimumWidth() == 180
 ```
 
-- [ ] **Step 2: Run the new tests and verify failure**
+- [x] **Step 2: Run the new tests and verify failure**
 
 Run: `uv run pytest tests/test_ui_shell.py -k 'top_bar_groups or connection_controls_follow' -v`
 
 Expected: FAIL because the top bar uses `QHBoxLayout`, the local controls are not exposed, and connection actions precede context.
 
-- [ ] **Step 3: Implement the adaptive connection group**
+- [x] **Step 3: Implement the adaptive connection group**
 
 In `ConnectionSelector`, expose `self.lbl_profile`, order the widgets as profile label → expanding combo → environment badge → new → edit, reduce the combo minimum width from 220 to 180, and apply `QSizePolicy.Expanding, Fixed`. Set all interactive controls to 32 px high.
 
 Replace emoji text with `Nueva conexión` and `Editar`, and use QtAwesome `fa6s.plug-circle-plus` and `fa6s.pen-to-square` icons. Keep the existing signals, profile data, environment badge, and tooltips.
 
-- [ ] **Step 4: Implement the three-column top bar**
+- [x] **Step 4: Implement the three-column top bar**
 
 In `MainWindow._setup_ui()`:
 
@@ -296,13 +296,13 @@ Expose the query group and secondary buttons as attributes. Use QtAwesome `fa6s.
 
 Expose the two splitters, set the explorer minimum width to 280, set horizontal sizes to `[340, 1000]`, set stretch factors to `0/1`, and make children non-collapsible. Set vertical sizes to `[455, 245]`, stretch factors to `13/7`, and minimum heights to 240/180.
 
-- [ ] **Step 5: Run all shell tests**
+- [x] **Step 5: Run all shell tests**
 
 Run: `uv run pytest tests/test_ui_shell.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the top bar layout**
+- [x] **Step 6: Commit the top bar layout**
 
 ```bash
 git add src/backend_ide/ui/views/main_window.py src/backend_ide/ui/components/connection_selector.py tests/test_ui_shell.py

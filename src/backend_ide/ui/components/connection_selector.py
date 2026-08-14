@@ -1,10 +1,12 @@
 """Connection Selector Dropdown Component with Profile Management Actions."""
 
+import qtawesome as qta
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.domain.connection import ConnectionProfile, Environment
+from backend_ide.ui.theme import ThemeManager
 
 
 class ConnectionSelector(QWidget):
@@ -25,15 +27,18 @@ class ConnectionSelector(QWidget):
         layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self.btn_new = QPushButton("🔌 Nueva Conexión")
-        self.btn_new.setObjectName("btn_new_conn")
-        self.btn_new.setFixedHeight(30)
+        self._theme_manager = ThemeManager.get_instance()
+
+        self.btn_new = QPushButton("Nueva conexión")
+        self.btn_new.setObjectName("secondary_button")
+        self.btn_new.setFixedHeight(32)
         self.btn_new.setToolTip("Abrir diálogo para crear una nueva conexión a base de datos")
 
-        label = QLabel("Perfil:")
+        self.lbl_profile = QLabel("Perfil:")
         self.combo = QComboBox()
-        self.combo.setFixedHeight(30)
-        self.combo.setMinimumWidth(220)
+        self.combo.setFixedHeight(32)
+        self.combo.setMinimumWidth(180)
+        self.combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.env_badge = QLabel(" [DEV] ")
         self.env_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.env_badge.setFixedSize(58, 24)
@@ -44,21 +49,29 @@ class ConnectionSelector(QWidget):
         )
         self.env_badge.setStyleSheet(badge_style)
 
-        self.btn_edit = QPushButton("⚙️ Editar")
-        self.btn_edit.setFixedHeight(30)
+        self.btn_edit = QPushButton("Editar")
+        self.btn_edit.setFixedHeight(32)
         self.btn_edit.setToolTip("Editar parámetros de la conexión seleccionada")
 
         self.btn_new.clicked.connect(self.new_connection_requested.emit)
         self.btn_edit.clicked.connect(self.edit_connection_requested.emit)
         self.combo.currentIndexChanged.connect(self._on_connection_changed)
 
-        layout.addWidget(self.btn_new, alignment=Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.lbl_profile, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.combo, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.env_badge, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.btn_new, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.btn_edit, alignment=Qt.AlignmentFlag.AlignVCenter)
 
+        self._theme_manager.theme_changed.connect(self._update_action_icons)
+        self._update_action_icons()
         self.refresh_profiles()
+
+    def _update_action_icons(self, _mode: str | None = None) -> None:
+        """Keep connection action icons readable in the active palette."""
+        color = self._theme_manager.current_palette.text_primary
+        self.btn_new.setIcon(qta.icon("fa6s.plug-circle-plus", color=color))
+        self.btn_edit.setIcon(qta.icon("fa6s.pen-to-square", color=color))
 
     def refresh_profiles(self) -> None:
         """Reload saved profiles into combo box."""

@@ -1,8 +1,10 @@
 """Main Application Window for PySide6 Desktop Shell."""
 
+import qtawesome as qta
 from PySide6.QtCore import Qt, QThreadPool, QTimer
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -50,6 +52,7 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle(f"Backend Development IDE v{__version__}")
         self.resize(1340, 840)
+        self.setMinimumSize(1100, 700)
 
         self._thread_pool = thread_pool or QThreadPool.globalInstance()
         self.connection_service = connection_service or ConnectionService()
@@ -79,13 +82,16 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(0)
 
         # 1. Segmented Top Bar Toolbar
-        top_bar = QWidget()
-        top_bar.setObjectName("top_bar")
-        top_bar.setFixedHeight(52)
-        top_layout = QHBoxLayout(top_bar)
+        self.top_bar = QWidget()
+        self.top_bar.setObjectName("top_bar")
+        self.top_bar.setFixedHeight(52)
+        top_layout = QGridLayout(self.top_bar)
         top_layout.setContentsMargins(12, 8, 12, 8)
-        top_layout.setSpacing(12)
-        top_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        top_layout.setHorizontalSpacing(12)
+        top_layout.setVerticalSpacing(0)
+        top_layout.setColumnStretch(0, 1)
+        top_layout.setColumnStretch(1, 0)
+        top_layout.setColumnStretch(2, 1)
 
         # Left Connection Group
         self.conn_selector = ConnectionSelector(self.connection_service)
@@ -93,47 +99,61 @@ class MainWindow(QMainWindow):
         self.conn_selector.edit_connection_requested.connect(self.open_edit_connection_dialog)
 
         # Center Execution Group
-        center_toolbar = QWidget()
-        center_toolbar.setObjectName("toolbar_group")
-        center_toolbar.setFixedHeight(36)
-        center_layout = QHBoxLayout(center_toolbar)
+        self.query_toolbar = QWidget()
+        self.query_toolbar.setObjectName("toolbar_group")
+        self.query_toolbar.setFixedHeight(36)
+        center_layout = QHBoxLayout(self.query_toolbar)
         center_layout.setContentsMargins(3, 2, 3, 2)
         center_layout.setSpacing(6)
         center_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self.btn_execute = QPushButton("▶️ Ejecutar")
+        self.btn_execute = QPushButton("Ejecutar")
         self.btn_execute.setObjectName("btn_execute")
-        self.btn_execute.setFixedHeight(30)
+        self.btn_execute.setFixedHeight(32)
         self.btn_execute.setToolTip("Ejecutar consulta activa (Ctrl+Enter)")
 
-        btn_new_query = QPushButton("➕ Nueva Consulta")
-        btn_er_diagram = QPushButton("🗺️ Diagrama ER")
-        btn_new_query.setFixedHeight(30)
-        btn_er_diagram.setFixedHeight(30)
+        self.btn_new_query = QPushButton("Nueva consulta")
+        self.btn_er_diagram = QPushButton("Diagrama ER")
+        self.btn_new_query.setFixedHeight(32)
+        self.btn_er_diagram.setFixedHeight(32)
+        self.btn_er_diagram.setEnabled(False)
+        self.btn_er_diagram.setToolTip("Disponible cuando se implemente el flujo de diagramas ER")
 
         self.btn_execute.clicked.connect(self.execute_current_query)
-        btn_new_query.clicked.connect(self.add_new_query_tab)
+        self.btn_new_query.clicked.connect(self.add_new_query_tab)
 
         center_layout.addWidget(self.btn_execute)
-        center_layout.addWidget(btn_new_query)
-        center_layout.addWidget(btn_er_diagram)
+        center_layout.addWidget(self.btn_new_query)
+        center_layout.addWidget(self.btn_er_diagram)
 
         # Right Theme & Settings Group
         self.theme_toggle = ThemeToggleButton()
 
-        top_layout.addWidget(self.conn_selector)
-        top_layout.addWidget(center_toolbar)
-        top_layout.addStretch()
-        top_layout.addWidget(self.theme_toggle)
+        top_layout.addWidget(
+            self.conn_selector,
+            0,
+            0,
+            alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        )
+        top_layout.addWidget(self.query_toolbar, 0, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+        top_layout.addWidget(
+            self.theme_toggle,
+            0,
+            2,
+            alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+        )
 
-        main_layout.addWidget(top_bar)
+        self._theme_manager.theme_changed.connect(self._update_toolbar_icons)
+        self._update_toolbar_icons()
+
+        main_layout.addWidget(self.top_bar)
 
         # 2. Breadcrumb Navigation Context Bar
         self.breadcrumb_bar = BreadcrumbWidget()
         main_layout.addWidget(self.breadcrumb_bar)
 
         # 3. Main Horizontal Splitter (Sidebar Explorer | Workspace)
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Left Sidebar (Database Explorer Widget)
         self.explorer_widget = DatabaseExplorerWidget()
@@ -142,12 +162,13 @@ class MainWindow(QMainWindow):
         self.explorer_widget.refresh_requested.connect(self._refresh_active_database)
         self.explorer_widget.add_connection_requested.connect(self.open_new_connection_dialog)
         self.explorer_widget.table_expansion_requested.connect(self._on_table_expansion_requested)
-        self.explorer_widget.setMinimumWidth(320)
+        self.explorer_widget.setMinimumWidth(280)
 
         # Right Area (Workspace Tabs + Results Splitter)
-        workspace_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.workspace_splitter = QSplitter(Qt.Orientation.Vertical)
 
         self.tabs_workspace = QTabWidget()
+        self.tabs_workspace.setMinimumHeight(240)
         self.tabs_workspace.setTabsClosable(True)
         self.tabs_workspace.tabCloseRequested.connect(self._on_tab_close_requested)
 
@@ -158,16 +179,25 @@ class MainWindow(QMainWindow):
 
         # Bottom Results Panel (ResultsWidget)
         self.results_widget = ResultsWidget(self.query_service)
+        self.results_widget.setMinimumHeight(180)
 
-        workspace_splitter.addWidget(self.tabs_workspace)
-        workspace_splitter.addWidget(self.results_widget)
-        workspace_splitter.setSizes([460, 260])
+        self.workspace_splitter.addWidget(self.tabs_workspace)
+        self.workspace_splitter.addWidget(self.results_widget)
+        self.workspace_splitter.setSizes([455, 245])
+        self.workspace_splitter.setStretchFactor(0, 13)
+        self.workspace_splitter.setStretchFactor(1, 7)
+        self.workspace_splitter.setCollapsible(0, False)
+        self.workspace_splitter.setCollapsible(1, False)
 
-        main_splitter.addWidget(self.explorer_widget)
-        main_splitter.addWidget(workspace_splitter)
-        main_splitter.setSizes([340, 1000])
+        self.main_splitter.addWidget(self.explorer_widget)
+        self.main_splitter.addWidget(self.workspace_splitter)
+        self.main_splitter.setSizes([340, 1000])
+        self.main_splitter.setStretchFactor(0, 0)
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setCollapsible(0, False)
+        self.main_splitter.setCollapsible(1, False)
 
-        main_layout.addWidget(main_splitter)
+        main_layout.addWidget(self.main_splitter)
         self.setCentralWidget(main_container)
 
         # 4. Status Bar
@@ -180,6 +210,13 @@ class MainWindow(QMainWindow):
 
         self.breadcrumb_bar.set_path("Sin conexión", "—", "—")
         self.conn_selector.connection_changed.connect(self._on_profile_changed)
+
+    def _update_toolbar_icons(self, _mode: str | None = None) -> None:
+        """Keep command icons readable when the centralized theme changes."""
+        palette = self._theme_manager.current_palette
+        self.btn_execute.setIcon(qta.icon("fa6s.play", color="#11111b"))
+        self.btn_new_query.setIcon(qta.icon("fa6s.file-circle-plus", color=palette.text_primary))
+        self.btn_er_diagram.setIcon(qta.icon("fa6s.diagram-project", color=palette.text_muted))
 
     def _load_initial_profile(self) -> None:
         """Inspect the first saved profile when the desktop starts."""
