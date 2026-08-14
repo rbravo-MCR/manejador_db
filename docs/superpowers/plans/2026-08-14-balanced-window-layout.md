@@ -513,6 +513,6 @@ git commit -m "test: verify balanced window layout"
 
 For each row in the design traceability table, cite one automated test, source location, or opened screenshot. Treat missing evidence as incomplete work and fix it before publication.
 
-- [ ] **Step 7: Prepare publication**
+- [x] **Step 7: Prepare publication**
 
 Confirm the feature branch contains only the design, plan, implementation, tests, and QA evidence. Then use the GitHub publication workflow requested by the user to push the branch and open a pull request; do not merge it.
