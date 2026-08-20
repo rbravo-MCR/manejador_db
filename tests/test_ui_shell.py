@@ -4,7 +4,7 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QDialog, QWidget
 
 from backend_ide.domain.connection import ConnectionProfile
@@ -64,24 +64,31 @@ def test_header_rows_stay_compact_and_controls_are_vertically_aligned(app_instan
     assert max(vertical_centers) - min(vertical_centers) <= 2
 
 
-def test_theme_toggle_functionality(app_instance, qtbot):
-    """Test switching Dark/Light theme updates ThemeManager and ToggleButton text."""
+def test_theme_control_exposes_system_light_and_dark(app_instance, qtbot):
+    """The compact theme control must expose every documented appearance mode."""
     _, window = app_instance
     qtbot.addWidget(window)
 
     manager = ThemeManager.get_instance()
-    manager.set_mode(ThemeMode.DARK)
+    manager.set_mode(ThemeMode.SYSTEM)
 
-    assert manager.current_mode == ThemeMode.DARK
-    assert "Light" in window.theme_toggle.text()
+    assert window.theme_toggle.height() == 32
+    assert [action.data() for action in window.theme_toggle.menu().actions()] == [
+        ThemeMode.SYSTEM,
+        ThemeMode.LIGHT,
+        ThemeMode.DARK,
+    ]
 
-    # Click toggle button
-    qtbot.mouseClick(
-        window.theme_toggle, pytest.importorskip("PySide6.QtCore").Qt.MouseButton.LeftButton
+    dark_action = next(
+        action for action in window.theme_toggle.menu().actions() if action.data() == ThemeMode.DARK
     )
+    dark_action.trigger()
+    assert manager.current_mode == ThemeMode.DARK
+    assert dark_action.isChecked()
+
+    qtbot.mouseClick(window.theme_toggle, Qt.MouseButton.LeftButton)
 
     assert manager.current_mode == ThemeMode.LIGHT
-    assert "Dark" in window.theme_toggle.text()
 
 
 def test_theme_manager_persists_all_documented_modes(qapp, tmp_path):
