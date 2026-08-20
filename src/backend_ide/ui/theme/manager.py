@@ -317,6 +317,42 @@ class ThemeManager(QObject):
             border-radius: 6px;
         }}
 
+        /* Popup & Context Menus */
+        QMenu {{
+            background-color: {p.bg_surface};
+            color: {p.text_primary};
+            border: 1px solid {p.border};
+            border-radius: 6px;
+            padding: 4px;
+        }}
+
+        QMenu::item {{
+            background-color: transparent;
+            color: {p.text_primary};
+            padding: 6px 28px 6px 24px;
+            border-radius: 4px;
+        }}
+
+        QMenu::item:selected {{
+            background-color: {p.bg_hover};
+            color: {p.text_primary};
+        }}
+
+        QMenu::item:checked {{
+            color: {p.accent};
+            font-weight: 600;
+        }}
+
+        QMenu::item:disabled {{
+            color: {p.text_muted};
+        }}
+
+        QMenu::separator {{
+            background-color: {p.border};
+            height: 1px;
+            margin: 4px 8px;
+        }}
+
         /* Input Controls & ComboBox */
         QComboBox, QLineEdit {{
             background-color: {p.bg_input};

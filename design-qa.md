@@ -83,6 +83,14 @@ Sin limitaciones visuales conocidas.
   mediante tokens; ya no hereda filas blancas o superficies negras de la paleta de plataforma.
 - El contraste, la lectura horizontal y la diferenciación entre filas se conservan en ambos temas.
 
+## Menús emergentes
+
+- Tema oscuro: `/tmp/manejador-db-popup-dark.png`
+- Tema claro: `/tmp/manejador-db-popup-light.png`
+- Los menús de tema, exportación y contexto comparten superficie, texto, hover,
+  selección, estados deshabilitados y separadores definidos mediante tokens.
+- Las opciones mantienen contraste legible y la opción activa no depende solo del color de fondo.
+
 ## Trazabilidad del rediseño
 
 | Requisito | Evidencia |
@@ -99,6 +107,7 @@ Sin limitaciones visuales conocidas.
 | Ejecución por teclado | `test_ctrl_enter_executes_the_active_query` |
 | Ejecución prioritaria del SQL seleccionado | `test_sql_editor_returns_only_selected_multiline_sql`, `test_execute_dispatches_only_the_selected_sql` y prueba real con resultado `answer = 2` |
 | Superficies legibles de la cuadrícula | `test_results_grid_defines_non_black_base_and_alternate_surfaces` y capturas claro/oscuro |
+| Contraste de menús emergentes | `test_popup_menus_use_readable_theme_surfaces` y capturas claro/oscuro |
 | Consultas e inspecciones fuera del hilo UI | `test_query_worker_background_execution`, `test_schema_worker_emits_database_names_and_schema` y `test_table_columns_worker_emits_fields_and_closes_transient_connection` |
 | Conservación de flujos de conexión y consulta | `test_execute_uses_active_connection_and_displays_real_rows` y pruebas de perfiles/cambio de base |
 | Estilos centralizados en componentes rediseñados | `ThemeManager`, propiedades dinámicas del entorno y tokens de `ThemePalette`; el color personalizado del perfil permanece como metadato y no reemplaza la semántica del entorno |

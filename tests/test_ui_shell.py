@@ -221,6 +221,22 @@ def test_system_theme_reacts_to_operating_system_appearance(qapp, tmp_path, monk
     assert settings.value("appearance/theme") == ThemeMode.SYSTEM.value
 
 
+def test_popup_menus_use_readable_theme_surfaces(qapp):
+    """Popup menus must define contrasting background, text, hover, and disabled states."""
+    manager = ThemeManager()
+    manager.set_mode(ThemeMode.DARK, persist=False)
+
+    stylesheet = manager.generate_stylesheet()
+
+    assert "QMenu {" in stylesheet
+    assert f"background-color: {DARK_PALETTE.bg_surface};" in stylesheet
+    assert f"color: {DARK_PALETTE.text_primary};" in stylesheet
+    assert "QMenu::item:selected" in stylesheet
+    assert f"background-color: {DARK_PALETTE.bg_hover};" in stylesheet
+    assert "QMenu::item:disabled" in stylesheet
+    assert f"color: {DARK_PALETTE.text_muted};" in stylesheet
+
+
 def test_workspace_tabs_management(app_instance, qtbot):
     """Test adding and closing tabs in workspace area."""
     _, window = app_instance
