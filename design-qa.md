@@ -73,6 +73,14 @@ Resultado de la revisión:
 
 Sin limitaciones visuales conocidas.
 
+## Superficie de resultados
+
+- Tema oscuro con consulta real: `/tmp/manejador-db-results-after.png`
+- Tema claro con datos equivalentes: `/tmp/manejador-db-results-light-after.png`
+- La cuadrícula define explícitamente fondo base, filas alternas, encabezado y selección
+  mediante tokens; ya no hereda filas blancas o superficies negras de la paleta de plataforma.
+- El contraste, la lectura horizontal y la diferenciación entre filas se conservan en ambos temas.
+
 ## Trazabilidad del rediseño
 
 | Requisito | Evidencia |
@@ -87,6 +95,7 @@ Sin limitaciones visuales conocidas.
 | Refrescar y agregar conexión desde el explorador | `test_explorer_header_actions_emit_their_documented_requests` |
 | Estado de entorno explícito y no interactivo | `test_environment_indicator_uses_full_semantic_labels_without_badge_chrome` y cuatro capturas abiertas |
 | Ejecución por teclado | `test_ctrl_enter_executes_the_active_query` |
+| Superficies legibles de la cuadrícula | `test_results_grid_defines_non_black_base_and_alternate_surfaces` y capturas claro/oscuro |
 | Consultas e inspecciones fuera del hilo UI | `test_query_worker_background_execution`, `test_schema_worker_emits_database_names_and_schema` y `test_table_columns_worker_emits_fields_and_closes_transient_connection` |
 | Conservación de flujos de conexión y consulta | `test_execute_uses_active_connection_and_displays_real_rows` y pruebas de perfiles/cambio de base |
 | Estilos centralizados en componentes rediseñados | `ThemeManager`, propiedades dinámicas del entorno y tokens de `ThemePalette`; el color personalizado del perfil permanece como metadato y no reemplaza la semántica del entorno |

@@ -376,19 +376,25 @@ class ThemeManager(QObject):
 
         /* Table View Grid */
         QTableView {{
-            background-color: {p.bg_surface};
+            background-color: {p.bg_input};
+            alternate-background-color: {p.bg_hover};
             gridline-color: {p.border};
             border: 1px solid {p.border};
             border-radius: 6px;
-            selection-background-color: {p.bg_input};
-            selection-color: {p.accent};
+            selection-background-color: {p.accent};
+            selection-color: {p.text_on_accent};
         }}
 
         QHeaderView::section {{
-            background-color: {p.bg_sidebar};
+            background-color: {p.bg_input};
             color: {p.text_primary};
             font-weight: bold;
             padding: 7px;
+            border: 1px solid {p.border};
+        }}
+
+        QTableCornerButton::section {{
+            background-color: {p.bg_input};
             border: 1px solid {p.border};
         }}
 
