@@ -1,7 +1,8 @@
 """Connection Selector Dropdown Component with Profile Management Actions."""
 
+import qtawesome as qta
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.domain.connection import ConnectionProfile, Environment
@@ -25,18 +26,21 @@ class ConnectionSelector(QWidget):
         layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self.btn_new = QPushButton("🔌 Nueva Conexión")
-        self.btn_new.setObjectName("btn_new_conn")
-        self.btn_new.setFixedHeight(30)
-        self.btn_new.setToolTip("Abrir diálogo para crear una nueva conexión a base de datos")
+        self.lbl_profile = QLabel("Perfil:")
 
-        label = QLabel("Perfil:")
         self.combo = QComboBox()
-        self.combo.setFixedHeight(30)
-        self.combo.setMinimumWidth(220)
+        self.combo.setFixedHeight(32)
+        self.combo.setMinimumWidth(180)
+        self.combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
         self.env_badge = QLabel(" [DEV] ")
         self.env_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.env_badge.setFixedSize(58, 24)
+
+        self.btn_new = QPushButton("Nueva conexión")
+        self.btn_new.setIcon(qta.icon("fa6s.plug-circle-plus"))
+        self.btn_new.setFixedHeight(32)
+        self.btn_new.setToolTip("Abrir diálogo para crear una nueva conexión a base de datos")
 
         badge_style = (
             "background-color: #89b4fa; color: #181825; "
@@ -44,18 +48,19 @@ class ConnectionSelector(QWidget):
         )
         self.env_badge.setStyleSheet(badge_style)
 
-        self.btn_edit = QPushButton("⚙️ Editar")
-        self.btn_edit.setFixedHeight(30)
+        self.btn_edit = QPushButton("Editar")
+        self.btn_edit.setIcon(qta.icon("fa6s.pen-to-square"))
+        self.btn_edit.setFixedHeight(32)
         self.btn_edit.setToolTip("Editar parámetros de la conexión seleccionada")
 
         self.btn_new.clicked.connect(self.new_connection_requested.emit)
         self.btn_edit.clicked.connect(self.edit_connection_requested.emit)
         self.combo.currentIndexChanged.connect(self._on_connection_changed)
 
-        layout.addWidget(self.btn_new, alignment=Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.lbl_profile, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.combo, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.env_badge, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.btn_new, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.btn_edit, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         self.refresh_profiles()

@@ -35,7 +35,7 @@ def test_main_window_creation(app_instance, qtbot):
     assert window.conn_selector is not None
     assert window.theme_toggle is not None
     assert window.explorer_widget is not None
-    assert window.explorer_widget.minimumWidth() >= 320
+    assert window.explorer_widget.minimumWidth() == 280
     assert window.tabs_workspace.count() == 1
     assert window.status_bar is not None
 
@@ -62,6 +62,42 @@ def test_header_rows_stay_compact_and_controls_are_vertically_aligned(app_instan
 
     vertical_centers = [control.mapTo(top_bar, control.rect().center()).y() for control in controls]
     assert max(vertical_centers) - min(vertical_centers) <= 2
+
+
+def test_top_bar_groups_controls_by_documented_function(app_instance, qtbot):
+    """The main actions must stay in stable connection, query, and application zones."""
+    app, window = app_instance
+    qtbot.addWidget(window)
+    window.show()
+    app.processEvents()
+
+    assert window.minimumSize().width() == 1100
+    assert window.minimumSize().height() == 700
+    assert window.top_bar.layout().columnCount() == 3
+    assert window.top_bar.layout().itemAtPosition(0, 0).widget() is window.conn_selector
+    assert window.top_bar.layout().itemAtPosition(0, 1).widget() is window.query_toolbar
+    assert window.top_bar.layout().itemAtPosition(0, 2).widget() is window.theme_toggle
+    assert window.btn_execute.height() == 32
+    assert window.btn_new_query.height() == 32
+    assert window.btn_er_diagram.height() == 32
+    assert not window.btn_er_diagram.isEnabled()
+
+
+def test_connection_controls_follow_context_then_actions(app_instance, qtbot):
+    """Connection context must precede its actions and remain readable when resized."""
+    _, window = app_instance
+    qtbot.addWidget(window)
+    layout = window.conn_selector.layout()
+    widgets = [layout.itemAt(index).widget() for index in range(layout.count())]
+
+    assert widgets == [
+        window.conn_selector.lbl_profile,
+        window.conn_selector.combo,
+        window.conn_selector.env_badge,
+        window.conn_selector.btn_new,
+        window.conn_selector.btn_edit,
+    ]
+    assert window.conn_selector.combo.minimumWidth() == 180
 
 
 def test_theme_control_exposes_system_light_and_dark(app_instance, qtbot):
