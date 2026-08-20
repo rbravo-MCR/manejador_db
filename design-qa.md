@@ -103,6 +103,7 @@ Sin limitaciones visuales conocidas.
 | `Ejecutar` como única acción primaria | estructura y textos comprobados en `test_top_bar_groups_controls_by_documented_function`; capturas claro/oscuro |
 | Acciones futuras deshabilitadas | estado de `Diagrama ER` comprobado en `test_top_bar_groups_controls_by_documented_function` |
 | Refrescar y agregar conexión desde el explorador | `test_explorer_header_actions_emit_their_documented_requests` |
+| SQL ejecutable antes de cargar campos por lazy loading | `test_sql_generation_falls_back_safely_before_lazy_columns_load`; `SELECT *` evita resultados con filas sin columnas |
 | Estado de entorno explícito y no interactivo | `test_environment_indicator_uses_full_semantic_labels_without_badge_chrome` y cuatro capturas abiertas |
 | Ejecución por teclado | `test_ctrl_enter_executes_the_active_query` |
 | Ejecución prioritaria del SQL seleccionado | `test_sql_editor_returns_only_selected_multiline_sql`, `test_execute_dispatches_only_the_selected_sql` y prueba real con resultado `answer = 2` |

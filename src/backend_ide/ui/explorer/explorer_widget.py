@@ -424,7 +424,7 @@ class DatabaseExplorerWidget(QWidget):
             return f"SELECT * FROM {schema_name}.{table_name};"
 
         t = self._schema_model.find_table(table_name, schema_name)
-        if not t:
+        if not t or not t.columns:
             return f"SELECT * FROM {schema_name}.{table_name};"
 
         cols_str = ",\n    ".join([c.name for c in t.columns])
@@ -440,6 +440,8 @@ class DatabaseExplorerWidget(QWidget):
             return f"INSERT INTO {schema_name}.{table_name} DEFAULT VALUES;"
 
         cols = [c.name for c in t.columns if not c.is_auto_increment]
+        if not cols:
+            return f"INSERT INTO {schema_name}.{table_name} DEFAULT VALUES;"
         cols_str = ", ".join(cols)
         vals_str = ", ".join([f":{c}" for c in cols])
         return f"INSERT INTO {schema_name}.{table_name} ({cols_str})\nVALUES ({vals_str});"
@@ -454,6 +456,8 @@ class DatabaseExplorerWidget(QWidget):
             return f"UPDATE {schema_name}.{table_name} SET column = value WHERE condition;"
 
         cols = [c.name for c in t.columns if not c.is_primary_key]
+        if not cols:
+            return f"UPDATE {schema_name}.{table_name} SET column = value WHERE condition;"
         set_str = ",\n    ".join([f"{c} = :{c}" for c in cols])
         pk_cols = t.primary_key.column_names if t.primary_key else ["id"]
         where_str = " AND ".join([f"{pk} = :{pk}" for pk in pk_cols])

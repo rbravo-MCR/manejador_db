@@ -231,3 +231,25 @@ def test_explorer_sql_generation_helpers(qtbot):
     assert "UPDATE public.users" in update_sql
     assert "SET" in update_sql
     assert "WHERE id = :id" in update_sql
+
+
+def test_sql_generation_falls_back_safely_before_lazy_columns_load(qtbot):
+    """Context actions must remain executable while table columns are still unloaded."""
+    explorer = DatabaseExplorerWidget()
+    qtbot.addWidget(explorer)
+    shallow_schema = DatabaseSchema(
+        engine_name="postgresql",
+        database_name="shop_db",
+        schemas=[Schema(name="public", tables=[Table(name="countries", schema_name="public")])],
+    )
+    explorer.load_schema_model("Test Connection", shallow_schema)
+
+    assert explorer._generate_select_sql("public", "countries") == (
+        "SELECT * FROM public.countries;"
+    )
+    assert explorer._generate_insert_sql("public", "countries") == (
+        "INSERT INTO public.countries DEFAULT VALUES;"
+    )
+    assert explorer._generate_update_sql("public", "countries") == (
+        "UPDATE public.countries SET column = value WHERE condition;"
+    )
