@@ -70,6 +70,8 @@ Resultado de la revisión:
   `Pruebas`, `Preproducción` o `Producción`), sin fondo ni borde que sugieran interacción.
 - Los controles permanecen visibles y alineados en el tamaño mínimo de 1100 × 700.
 - `Ctrl+Enter` ejecuta la consulta del editor activo mediante el mismo flujo asíncrono del botón.
+- Cuando existe una selección, botón y atajo ejecutan solo ese SQL y conservan correctamente
+  sus saltos de línea; sin selección se ejecuta el documento completo.
 
 Sin limitaciones visuales conocidas.
 
@@ -95,6 +97,7 @@ Sin limitaciones visuales conocidas.
 | Refrescar y agregar conexión desde el explorador | `test_explorer_header_actions_emit_their_documented_requests` |
 | Estado de entorno explícito y no interactivo | `test_environment_indicator_uses_full_semantic_labels_without_badge_chrome` y cuatro capturas abiertas |
 | Ejecución por teclado | `test_ctrl_enter_executes_the_active_query` |
+| Ejecución prioritaria del SQL seleccionado | `test_sql_editor_returns_only_selected_multiline_sql`, `test_execute_dispatches_only_the_selected_sql` y prueba real con resultado `answer = 2` |
 | Superficies legibles de la cuadrícula | `test_results_grid_defines_non_black_base_and_alternate_surfaces` y capturas claro/oscuro |
 | Consultas e inspecciones fuera del hilo UI | `test_query_worker_background_execution`, `test_schema_worker_emits_database_names_and_schema` y `test_table_columns_worker_emits_fields_and_closes_transient_connection` |
 | Conservación de flujos de conexión y consulta | `test_execute_uses_active_connection_and_displays_real_rows` y pruebas de perfiles/cambio de base |

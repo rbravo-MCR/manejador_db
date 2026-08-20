@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from backend_ide.domain.connection import ConnectionProfile, Environment
@@ -271,6 +272,27 @@ def test_ctrl_enter_executes_the_active_query(qtbot):
     qtbot.keyClick(editor.editor, Qt.Key.Key_Return, modifier=Qt.KeyboardModifier.ControlModifier)
 
     assert pool.worker is not None
+
+
+def test_execute_dispatches_only_the_selected_sql(qtbot):
+    """Button and keyboard execution must prioritize the editor selection."""
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    window._active_connection = MagicMock()
+    editor = window.tabs_workspace.currentWidget()
+    sql = "SELECT 1;\nSELECT\n  2 AS answer;"
+    editor.set_sql_text(sql)
+    cursor = editor.editor.textCursor()
+    cursor.setPosition(sql.index("SELECT\n"))
+    cursor.setPosition(len(sql), QTextCursor.MoveMode.KeepAnchor)
+    editor.editor.setTextCursor(cursor)
+
+    window.execute_current_query()
+
+    assert pool.worker is not None
+    assert pool.worker.request.sql == "SELECT\n  2 AS answer;"
+    assert "selección" in window.btn_execute.toolTip()
 
 
 def test_opening_new_connection_keeps_main_window_alive(app_instance, qtbot, monkeypatch):

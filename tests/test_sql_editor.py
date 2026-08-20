@@ -2,6 +2,8 @@
 
 import os
 
+from PySide6.QtGui import QTextCursor
+
 from backend_ide.ui.editor import SqlEditorWidget
 from backend_ide.ui.theme import ThemeManager, ThemeMode
 
@@ -28,6 +30,19 @@ def test_sql_editor_text_modification(qtbot):
 
     editor_widget.set_sql_text("SELECT 2;")
     assert editor_widget.get_sql_text() == "SELECT 2;"
+
+
+def test_sql_editor_returns_only_selected_multiline_sql(qtbot):
+    """Selected SQL must preserve line breaks so the database can execute it."""
+    sql = "SELECT 1;\nSELECT\n  2 AS answer;"
+    editor_widget = SqlEditorWidget(initial_text=sql)
+    qtbot.addWidget(editor_widget)
+    cursor = editor_widget.editor.textCursor()
+    cursor.setPosition(sql.index("SELECT\n"))
+    cursor.setPosition(len(sql), QTextCursor.MoveMode.KeepAnchor)
+    editor_widget.editor.setTextCursor(cursor)
+
+    assert editor_widget.get_sql_text() == "SELECT\n  2 AS answer;"
 
 
 def test_sql_editor_theme_adaptation(qtbot):

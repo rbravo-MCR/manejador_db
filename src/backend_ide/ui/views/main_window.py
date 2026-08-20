@@ -112,7 +112,7 @@ class MainWindow(QMainWindow):
         self.btn_execute = QPushButton("Ejecutar")
         self.btn_execute.setObjectName("btn_execute")
         self.btn_execute.setFixedHeight(32)
-        self.btn_execute.setToolTip("Ejecutar consulta activa (Ctrl+Enter)")
+        self.btn_execute.setToolTip("Ejecutar selección o consulta activa (Ctrl+Enter)")
 
         self.btn_new_query = QPushButton("Nueva consulta")
         self.btn_er_diagram = QPushButton("Diagrama ER")

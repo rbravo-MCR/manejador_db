@@ -238,9 +238,11 @@ class SqlEditorWidget(QWidget):
         self.editor.highlight_current_line()
 
     def get_sql_text(self) -> str:
+        """Return the selected SQL, or the complete document when there is no selection."""
         cursor = self.editor.textCursor()
         if cursor.hasSelection():
-            return cursor.selectedText().strip()
+            selected = cursor.selectedText().replace("\u2029", "\n").replace("\u2028", "\n")
+            return selected.strip()
         return self.editor.toPlainText().strip()
 
     def set_sql_text(self, text: str) -> None:
