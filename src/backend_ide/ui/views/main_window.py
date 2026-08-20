@@ -416,7 +416,7 @@ class MainWindow(QMainWindow):
             return
 
         self.btn_execute.setEnabled(False)
-        self.results_widget.lbl_stats.setText("⏳ Ejecutando consulta…")
+        self.results_widget.lbl_stats.setText("Ejecutando consulta…")
         self._query_worker = self.query_service.execute_async(
             self._active_connection,
             QueryRequest(sql=sql_text),

@@ -160,11 +160,7 @@ class SqlCodeEditor(QPlainTextEdit):
         extra_selections = []
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-            line_color = (
-                QColor("#45475a")
-                if ThemeManager.get_instance().current_mode == ThemeMode.DARK
-                else QColor("#dce0e6")
-            )
+            line_color = QColor(ThemeManager.get_instance().current_palette.bg_hover)
             selection.format.setBackground(line_color)
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor()
@@ -238,7 +234,7 @@ class SqlEditorWidget(QWidget):
         }}
         """
         self.editor.setStyleSheet(style)
-        self.highlighter.set_theme_colors(mode_str, p)
+        self.highlighter.set_theme_colors(self._theme_manager.resolved_mode.value, p)
         self.editor.highlight_current_line()
 
     def get_sql_text(self) -> str:

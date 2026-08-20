@@ -139,6 +139,31 @@ class ThemeManager(QObject):
             padding: 6px 10px;
         }}
 
+        QLabel#sidebar_title, QLabel#section_label {{
+            color: {p.text_secondary};
+            font-size: 11px;
+            font-weight: 700;
+        }}
+
+        QLabel#count_badge {{
+            background-color: {p.bg_hover};
+            color: {p.text_primary};
+            border-radius: 8px;
+            padding: 1px 6px;
+            font-size: 10px;
+            font-weight: 700;
+        }}
+
+        QLabel[status="loading"] {{
+            color: {p.info};
+            padding: 2px 4px;
+        }}
+
+        QLabel[status="error"] {{
+            color: {p.danger};
+            padding: 2px 4px;
+        }}
+
         /* Breadcrumb Bar */
         #breadcrumb_bar {{
             background-color: {p.bg_sidebar};
@@ -146,6 +171,32 @@ class ThemeManager(QObject):
             padding: 4px 10px;
             font-size: 12px;
             color: {p.text_secondary};
+        }}
+
+        QLabel#breadcrumb_item {{
+            color: {p.text_secondary};
+            font-weight: 500;
+        }}
+
+        QLabel#breadcrumb_separator {{
+            color: {p.text_muted};
+            font-size: 14px;
+            font-weight: 700;
+        }}
+
+        QLabel#breadcrumb_current {{
+            color: {p.accent};
+            font-weight: 700;
+        }}
+
+        QLabel#results_status {{
+            color: {p.text_primary};
+            font-size: 12px;
+            font-weight: 700;
+        }}
+
+        QTextEdit#results_messages {{
+            font-family: 'Fira Code', 'JetBrains Mono', monospace;
         }}
 
         /* Tabs Styling */
@@ -287,6 +338,17 @@ class ThemeManager(QObject):
             background-color: {p.bg_input};
             color: {p.accent};
             font-weight: bold;
+        }}
+
+        QTreeWidget#explorer_tree {{
+            border: none;
+            border-radius: 0px;
+            padding: 2px;
+        }}
+
+        QTreeWidget#explorer_tree::item {{
+            min-height: 18px;
+            padding: 2px 3px;
         }}
 
         /* Table View Grid */

@@ -15,18 +15,16 @@ class BreadcrumbWidget(QWidget):
         layout.setContentsMargins(10, 4, 10, 4)
         layout.setSpacing(6)
 
-        self.lbl_conn = QLabel("🔌 Local PostgreSQL (Dev)")
+        self.lbl_conn = QLabel("Local PostgreSQL (Dev)")
+        self.lbl_conn.setObjectName("breadcrumb_item")
         self.lbl_sep1 = QLabel("›")
-        self.lbl_db = QLabel("🗄️ postgres")
+        self.lbl_sep1.setObjectName("breadcrumb_separator")
+        self.lbl_db = QLabel("postgres")
+        self.lbl_db.setObjectName("breadcrumb_item")
         self.lbl_sep2 = QLabel("›")
-        self.lbl_schema = QLabel("📦 public")
-
-        for lbl in (self.lbl_sep1, self.lbl_sep2):
-            lbl.setStyleSheet("color: #6c7086; font-size: 14px; font-weight: bold;")
-
-        self.lbl_conn.setStyleSheet("font-weight: 500;")
-        self.lbl_db.setStyleSheet("font-weight: 500;")
-        self.lbl_schema.setStyleSheet("font-weight: bold; color: #89b4fa;")
+        self.lbl_sep2.setObjectName("breadcrumb_separator")
+        self.lbl_schema = QLabel("public")
+        self.lbl_schema.setObjectName("breadcrumb_current")
 
         layout.addWidget(self.lbl_conn)
         layout.addWidget(self.lbl_sep1)
@@ -43,6 +41,6 @@ class BreadcrumbWidget(QWidget):
         table_name: str | None = None,
     ) -> None:
         """Update breadcrumb path components."""
-        self.lbl_conn.setText(f"🔌 {connection_name}")
-        self.lbl_db.setText(f"🗄️ {db_name}")
-        self.lbl_schema.setText(f"📦 {schema_name}")
+        self.lbl_conn.setText(connection_name)
+        self.lbl_db.setText(db_name)
+        self.lbl_schema.setText(schema_name)

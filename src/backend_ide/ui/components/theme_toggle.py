@@ -6,7 +6,6 @@ from PySide6.QtWidgets import QMenu, QToolButton
 
 from backend_ide.ui.theme import ThemeManager, ThemeMode
 
-
 MODE_LABELS = {
     ThemeMode.SYSTEM: "Sistema",
     ThemeMode.LIGHT: "Claro",
