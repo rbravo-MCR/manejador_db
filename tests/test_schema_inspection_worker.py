@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 from backend_ide.domain.schema import DatabaseSchema
 from backend_ide.infrastructure.database.postgresql import PostgreSQLInspector
 from backend_ide.infrastructure.database.schema_inspection_worker import SchemaInspectionWorker
+from backend_ide.infrastructure.database.sqlite import SQLiteMetadataProvider
 
 
 def test_schema_worker_emits_database_names_and_schema(qtbot):
@@ -17,7 +18,7 @@ def test_schema_worker_emits_database_names_and_schema(qtbot):
 
     with (
         patch.object(PostgreSQLInspector, "list_databases", return_value=["db_outlet"]),
-        patch.object(PostgreSQLInspector, "inspect_database_summary", return_value=schema),
+        patch.object(PostgreSQLInspector, "inspect_completion_metadata", return_value=schema),
     ):
         worker.run()
 
@@ -35,7 +36,7 @@ def test_schema_worker_reuses_known_database_names(qtbot):
 
     with (
         patch.object(PostgreSQLInspector, "list_databases") as list_databases,
-        patch.object(PostgreSQLInspector, "inspect_database_summary", return_value=schema),
+        patch.object(PostgreSQLInspector, "inspect_completion_metadata", return_value=schema),
     ):
         worker.run()
 
@@ -60,3 +61,22 @@ def test_schema_worker_disconnects_candidate_and_emits_failure(qtbot):
 
     connection.disconnect.assert_called_once()
     assert errors == ["permission denied for ••••"]
+
+
+def test_schema_worker_uses_sqlite_metadata_without_postgresql_catalog_queries(qtbot):
+    connection = MagicMock()
+    connection.config.engine = "sqlite"
+    schema = DatabaseSchema(engine_name="sqlite", database_name="local.sqlite3")
+    worker = SchemaInspectionWorker(connection)
+    results = []
+    worker.signals.succeeded.connect(results.append)
+
+    with (
+        patch.object(SQLiteMetadataProvider, "inspect_database", return_value=schema),
+        patch.object(PostgreSQLInspector, "list_databases") as postgres_catalog,
+    ):
+        worker.run()
+
+    postgres_catalog.assert_not_called()
+    assert results[0].database_names == ("local.sqlite3",)
+    assert results[0].schema is schema

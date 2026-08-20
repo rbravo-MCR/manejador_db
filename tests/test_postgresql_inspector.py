@@ -4,7 +4,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 from backend_ide.domain.schema.enums import ForeignKeyAction, NormalizedDataType
-from backend_ide.infrastructure.database.contracts import ConnectionConfig
+from backend_ide.infrastructure.database.contracts import ConnectionConfig, MetadataProvider
 from backend_ide.infrastructure.database.postgresql import (
     PostgreSQLConnection,
     PostgreSQLInspector,
@@ -82,6 +82,10 @@ def test_postgresql_inspector_lists_connectable_databases():
     assert "has_database_privilege" in sql
 
 
+def test_postgresql_inspector_exposes_the_shared_metadata_provider_contract():
+    assert isinstance(PostgreSQLInspector(MagicMock()), MetadataProvider)
+
+
 def test_postgresql_inspector_builds_explorer_summary_in_two_queries():
     """The explorer must not issue several catalog queries for each table."""
     connection = MagicMock()
@@ -103,6 +107,61 @@ def test_postgresql_inspector_builds_explorer_summary_in_two_queries():
     assert [item.name for item in schema.schemas] == ["public", "supplier_service"]
     assert [table.name for table in schema.schemas[0].tables] == ["customers", "orders"]
     assert connection.execute_query.call_count == 2
+
+
+def test_postgresql_inspector_builds_completion_metadata_with_bulk_queries():
+    """IntelliSense metadata must include columns, views, and routines without per-key I/O."""
+    connection = MagicMock()
+
+    def execute(query, _params=None):
+        if "current_database()" in query:
+            return [{"db_name": "app"}]
+        if "object_kind" in query:
+            return [
+                {"schema_name": "public", "object_name": "users", "object_kind": "table"},
+                {
+                    "schema_name": "public",
+                    "object_name": "active_users",
+                    "object_kind": "view",
+                },
+            ]
+        if "information_schema.columns" in query:
+            return [
+                {
+                    "table_schema": "public",
+                    "table_name": "users",
+                    "column_name": "id",
+                    "data_type": "integer",
+                    "udt_name": "int4",
+                    "is_nullable": "NO",
+                    "column_default": None,
+                    "character_maximum_length": None,
+                    "numeric_precision": 32,
+                    "numeric_scale": 0,
+                    "is_identity": "YES",
+                }
+            ]
+        return [
+            {
+                "schema_name": "public",
+                "routine_name": "calculate_total",
+                "routine_kind": "f",
+                "return_type": "numeric",
+                "definition": None,
+                "language": "sql",
+            }
+        ]
+
+    connection.execute_query.side_effect = execute
+
+    schema = PostgreSQLInspector(connection).inspect_completion_metadata()
+
+    public = schema.get_schema("public")
+    assert [table.name for table in public.tables] == ["users"]
+    assert [column.name for column in public.tables[0].columns] == ["id"]
+    assert [view.name for view in public.views] == ["active_users"]
+    assert [function.name for function in public.functions] == ["calculate_total"]
+    assert connection.execute_query.call_count == 4
 
 
 def test_postgresql_inspector_loads_table_columns_and_marks_primary_key():

@@ -66,7 +66,7 @@ class DatabaseExplorerWidget(QWidget):
         self.btn_refresh = QToolButton()
         self.btn_refresh.setObjectName("icon_button")
         self.btn_refresh.setFixedSize(32, 32)
-        self.btn_refresh.setToolTip("Refrescar estructura")
+        self.btn_refresh.setToolTip("Refrescar metadatos")
         self.btn_refresh.clicked.connect(self.refresh_requested.emit)
 
         self.btn_add = QToolButton()

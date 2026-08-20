@@ -353,6 +353,28 @@ class ThemeManager(QObject):
             margin: 4px 8px;
         }}
 
+        QListView#completion_popup {{
+            background-color: {p.bg_surface};
+            color: {p.text_primary};
+            border: 1px solid {p.border};
+            border-radius: 6px;
+            padding: 3px;
+            font-family: 'Fira Code', 'JetBrains Mono', monospace;
+            font-size: 11px;
+            outline: none;
+        }}
+
+        QListView#completion_popup::item {{
+            color: {p.text_primary};
+            padding: 5px 7px;
+            border-radius: 4px;
+        }}
+
+        QListView#completion_popup::item:selected {{
+            background-color: {p.bg_hover};
+            color: {p.accent};
+        }}
+
         /* Input Controls & ComboBox */
         QComboBox, QLineEdit {{
             background-color: {p.bg_input};

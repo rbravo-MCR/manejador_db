@@ -9,7 +9,7 @@ from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from backend_ide.domain.connection import ConnectionProfile, Environment
-from backend_ide.domain.schema import DatabaseSchema, Schema, Table
+from backend_ide.domain.schema import Column, DatabaseSchema, Schema, Table
 from backend_ide.infrastructure.database.schema_inspection_worker import DatabaseInspectionResult
 from backend_ide.ui.app import create_app
 from backend_ide.ui.theme import DARK_PALETTE, LIGHT_PALETTE, ThemeManager, ThemeMode
@@ -364,6 +364,76 @@ def test_inspection_success_updates_explorer_database_breadcrumb_and_status(qtbo
     assert "B2B_OUTLET" in window.breadcrumb_bar.lbl_conn.text()
     assert "Conectado" in window.status_lbl_conn.text()
     assert "Desarrollo" in window.status_lbl_conn.text()
+
+
+def test_successful_inspection_attaches_schema_to_existing_and_new_sql_tabs(qtbot):
+    """Every SQL tab must complete from the currently inspected database schema."""
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    profile = ConnectionProfile(name="B2B_OUTLET", engine="postgresql", database="db_outlet")
+    schema = create_live_schema()
+    window._candidate_connection = MagicMock()
+    window._candidate_profile = profile
+    window._candidate_database = "db_outlet"
+
+    window._on_inspection_succeeded(DatabaseInspectionResult(("db_outlet",), schema))
+
+    existing_editor = window.tabs_workspace.currentWidget()
+    cached_schema = window._metadata_cache.get(f"{profile.id}/db_outlet")
+    assert cached_schema is window._active_schema
+    assert cached_schema is not schema
+    assert existing_editor.completer.engine.schema_model is cached_schema
+    new_editor = window.add_new_query_tab()
+    assert new_editor.completer.engine.schema_model is cached_schema
+
+
+def test_lazy_table_columns_refresh_intellisense_cache(qtbot):
+    """Loaded columns must become suggestions without a database call per keystroke."""
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    profile = ConnectionProfile(name="B2B_OUTLET", engine="postgresql", database="db_outlet")
+    schema = create_live_schema()
+    window._candidate_connection = MagicMock()
+    window._candidate_profile = profile
+    window._candidate_database = "db_outlet"
+    window._on_inspection_succeeded(DatabaseInspectionResult(("db_outlet",), schema))
+
+    with patch.object(window.connection_service, "build_connection", return_value=MagicMock()):
+        window._on_table_expansion_requested("public", "customers")
+    columns = [Column(name="email", native_type="text")]
+    pool.worker.signals.succeeded.emit("public", "customers", columns)
+
+    editor = window.tabs_workspace.currentWidget()
+    assert window._active_schema is not schema
+    assert [
+        column.name for column in window._active_schema.find_table("customers", "public").columns
+    ] == ["email"]
+    completions = editor.completer.engine.get_completions(
+        prefix="em",
+        context_text="SELECT c.em\nFROM public.customers c",
+    )
+    assert [item.text for item in completions] == ["email"]
+
+
+def test_successful_ddl_refreshes_cached_metadata(qtbot):
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    window._active_profile = ConnectionProfile(
+        name="B2B_OUTLET", engine="postgresql", database="db_outlet"
+    )
+    window._active_database = "db_outlet"
+    window._active_connection = MagicMock()
+    editor = window.tabs_workspace.currentWidget()
+    editor.set_sql_text("CREATE TABLE audit_log (id bigint);")
+
+    with patch.object(window, "_refresh_active_database") as refresh:
+        window.execute_current_query()
+        pool.worker.run()
+
+    refresh.assert_called_once_with()
 
 
 def test_database_selection_queues_candidate_for_selected_database(qtbot):

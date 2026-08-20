@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QLineEdit
 
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.domain.connection import ConnectionProfile, Environment
+from backend_ide.infrastructure.database.sqlite.connection import SQLiteConnection
 from backend_ide.infrastructure.storage.connection_repository import ConnectionRepository
 from backend_ide.ui.components import ConnectionSelector, EnvironmentIndicator
 from backend_ide.ui.dialogs.connection_dialog import ConnectionDialog
@@ -133,6 +134,24 @@ def test_connection_service_can_target_another_database_without_mutating_profile
 
     assert adapter.config.database == "analytics"
     assert profile.database == "db_outlet"
+
+
+def test_connection_service_builds_a_working_sqlite_adapter(temp_repo, tmp_path):
+    repo, _ = temp_repo
+    service = ConnectionService(repo)
+    profile = ConnectionProfile(
+        name="Local SQLite",
+        engine="sqlite",
+        database=str(tmp_path / "local.sqlite3"),
+    )
+
+    adapter = service.build_connection(profile)
+    adapter.execute_query("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)")
+    rows = adapter.execute_query("SELECT name FROM sqlite_master WHERE type = 'table'")
+
+    assert isinstance(adapter, SQLiteConnection)
+    assert rows == [{"name": "users"}]
+    adapter.disconnect()
 
 
 def test_connection_selector_can_select_profile_by_id(temp_repo, qtbot):

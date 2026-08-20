@@ -112,3 +112,62 @@ Sin limitaciones visuales conocidas.
 | Consultas e inspecciones fuera del hilo UI | `test_query_worker_background_execution`, `test_schema_worker_emits_database_names_and_schema` y `test_table_columns_worker_emits_fields_and_closes_transient_connection` |
 | Conservación de flujos de conexión y consulta | `test_execute_uses_active_connection_and_displays_real_rows` y pruebas de perfiles/cambio de base |
 | Estilos centralizados en componentes rediseñados | `ThemeManager`, propiedades dinámicas del entorno y tokens de `ThemePalette`; el color personalizado del perfil permanece como metadato y no reemplaza la semántica del entorno |
+
+## Editor SQL con autocompletado inteligente
+
+Especificación implementada: `docs/FEATURE SPEC — Editor SQL con Autocompletado Inteligente.md`,
+primera entrega funcional.
+
+### Evidencia visual
+
+- Popup con metadata PostgreSQL real, tema oscuro:
+  `/tmp/manejador-db-intellisense-dark.png`.
+- Popup con la misma metadata, tema claro:
+  `/tmp/manejador-db-intellisense-light.png`.
+- Ambos estados muestran iconos QtAwesome, etiqueta limpia, tipo nativo y objeto calificado;
+  selección, texto, fondo, borde y scroll conservan contraste mediante `ThemeManager`.
+
+### Verificación con metadata real
+
+- Perfil: `B2B_OUTLET`; base: `db_outlet`.
+- Carga bulk comprobada: 407 tablas, 4 vistas y 281 funciones.
+- Caso manual: `SELECT a.` seguido por
+  `FROM admin_service.activity_log a`.
+- Resultado: el popup mostró, en orden, las 12 columnas reales de
+  `admin_service.activity_log`, empezando por `id`, `log_name`, `description`,
+  `subject_type`, `subject_id`, `event`, `causer_type` y `causer_id`.
+- La interacción se ejecutó exclusivamente sobre el snapshot en memoria después de cerrar la
+  conexión usada para la inspección; no hubo consultas de catálogo por pulsación.
+
+### Trazabilidad funcional
+
+| Requisito | Evidencia |
+| --- | --- |
+| `SEL` → `SELECT` y keywords por dialecto | `test_completion_engine_keywords`, `test_four_dialect_providers_are_available_without_ui_conditionals` |
+| Schemas, tablas y vistas | `test_schema_dot_returns_only_tables_and_views_from_that_schema` |
+| Columnas y aliases multilínea | `test_complete_uses_sources_after_cursor_for_alias_columns` y comprobación PostgreSQL real |
+| JOIN, WHERE, UPDATE e INSERT | `test_complete_resolves_join_where_update_and_insert_columns` |
+| Funciones del motor y de metadata | `test_dialect_functions_and_cached_database_functions_are_available` |
+| Fuzzy matching y ranking contextual | `test_fuzzy_matching_finds_table_without_prefix_match`, `test_contextual_ranking_prioritizes_columns_over_generic_keywords` |
+| Snippets básicos | `test_basic_snippet_is_ranked_for_its_trigger` |
+| Caché por conexión/base y actualización atómica | `test_cache_isolates_database_snapshots_and_returns_no_cross_connection_data`, `test_column_update_replaces_snapshot_atomically` |
+| Metadata PostgreSQL sin consulta por objeto | `test_postgresql_inspector_builds_completion_metadata_with_bulk_queries` |
+| Soporte inicial SQLite | `test_connection_service_builds_a_working_sqlite_adapter`, `test_sqlite_provider_loads_tables_views_columns_and_primary_keys` |
+| Debounce de 150 ms y punto inmediato | `test_automatic_completion_is_debounced_but_remains_responsive`, `test_dot_opens_alias_columns_immediately_without_waiting_for_debounce` |
+| Ctrl/Cmd+Space, Enter, Tab y Escape | pruebas manuales y `test_ctrl_space_manually_opens_intellisense`, `test_tab_accepts_current_completion_and_replaces_only_prefix`, `test_enter_accepts_completion_and_escape_dismisses_popup` |
+| Tema claro/oscuro e información adicional | dos capturas abiertas y `test_popup_model_exposes_insert_text_and_documentation` |
+| Objetivo de menos de 100 ms y catálogos grandes | `test_cached_completion_stays_under_budget_and_caps_large_catalog_results`; 2,000 tablas y máximo de 200 resultados renderizados |
+| Refresco manual y después de DDL exitoso | acción `Refrescar metadatos` y `test_successful_ddl_refreshes_cached_metadata` |
+
+### Límites deliberados de esta primera entrega
+
+- CTE, subqueries, sugerencias basadas en foreign keys, signature help y parámetros de
+  funciones pertenecen a la segunda entrega definida por la especificación.
+- MySQL/MariaDB y SQL Server ya tienen proveedores de lenguaje desacoplados; sus proveedores
+  de metadata y adaptadores de conexión completos quedan para la segunda entrega.
+- SQLite expone funciones integradas por dialecto porque SQLite no mantiene un catálogo
+  estándar de funciones registradas por la aplicación.
+- El analizador actual combina tokenización y estado para contextos comunes; queda aislado de
+  Qt para poder sustituirse o ampliarse con un parser avanzado sin cambiar el editor.
+
+Resultado del autocompletado: passed.
