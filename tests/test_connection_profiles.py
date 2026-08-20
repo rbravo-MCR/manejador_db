@@ -150,6 +150,18 @@ def test_connection_selector_can_select_profile_by_id(temp_repo, qtbot):
     assert selector.get_selected_profile().id == second.id
 
 
+def test_connection_selector_uses_theme_tokens_for_default_environment(temp_repo, qtbot):
+    """Default environment colors must come from the centralized theme stylesheet."""
+    repo, _ = temp_repo
+    selector = ConnectionSelector(ConnectionService(repo))
+    qtbot.addWidget(selector)
+
+    assert selector.get_selected_profile().color is None
+    assert selector.env_badge.text() == "DEV"
+    assert selector.env_badge.property("environment") == "development"
+    assert selector.env_badge.styleSheet() == ""
+
+
 def test_connection_dialog_gui(temp_repo, qtbot):
     """Test PySide6 ConnectionDialog profile editing and saving."""
     repo, _ = temp_repo

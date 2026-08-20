@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
 from backend_ide.domain.connection import ConnectionProfile
 from backend_ide.domain.schema import DatabaseSchema, Schema, Table
@@ -81,6 +81,9 @@ def test_top_bar_groups_controls_by_documented_function(app_instance, qtbot):
     assert window.btn_new_query.height() == 32
     assert window.btn_er_diagram.height() == 32
     assert not window.btn_er_diagram.isEnabled()
+    assert window.btn_execute.text() == "Ejecutar"
+    assert window.btn_new_query.text() == "Nueva consulta"
+    assert window.btn_er_diagram.text() == "Diagrama ER"
 
 
 def test_connection_controls_follow_context_then_actions(app_instance, qtbot):
@@ -98,6 +101,8 @@ def test_connection_controls_follow_context_then_actions(app_instance, qtbot):
         window.conn_selector.btn_edit,
     ]
     assert window.conn_selector.combo.minimumWidth() == 180
+    assert window.conn_selector.env_badge.text() == "DEV"
+    assert window.conn_selector.env_badge.property("environment") == "development"
 
 
 @pytest.mark.parametrize("size", [(1340, 840), (1100, 700)])
@@ -115,6 +120,14 @@ def test_documented_window_sizes_have_no_clipped_toolbar_controls(app_instance, 
         assert top_rect.contains(rect.topLeft())
         assert top_rect.contains(rect.bottomRight())
         assert control.isVisible()
+
+    explorer_width, workspace_width = window.main_splitter.sizes()
+    editor_height, results_height = window.workspace_splitter.sizes()
+    assert abs(explorer_width - 340) <= 2
+    assert workspace_width > explorer_width
+    assert editor_height >= 240
+    assert results_height >= 180
+    assert 0.62 <= editor_height / (editor_height + results_height) <= 0.68
 
 
 def test_theme_control_exposes_system_light_and_dark(app_instance, qtbot):
@@ -184,6 +197,9 @@ def test_workspace_tabs_management(app_instance, qtbot):
     window._on_tab_close_requested(0)
     assert window.tabs_workspace.count() == 1
 
+    qtbot.mouseClick(window.btn_new_query, Qt.MouseButton.LeftButton)
+    assert window.tabs_workspace.count() == 2
+
 
 def test_execute_uses_active_connection_and_displays_real_rows(qtbot):
     """Executing SQL must show rows returned by the active database, never demo data."""
@@ -202,6 +218,24 @@ def test_execute_uses_active_connection_and_displays_real_rows(qtbot):
     pool.worker.run()
     assert window.results_widget.table_model.rowCount() == 1
     assert window.results_widget.table_model.item(0, 0).text() == "42"
+
+
+def test_ctrl_enter_executes_the_active_query(qtbot):
+    """The documented keyboard shortcut must dispatch the active editor query."""
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    window._active_connection = MagicMock()
+    editor = window.tabs_workspace.currentWidget()
+    editor.set_sql_text("SELECT 1;")
+    window.show()
+    QApplication.processEvents()
+    editor.editor.setFocus()
+    QApplication.processEvents()
+
+    qtbot.keyClick(editor.editor, Qt.Key.Key_Return, modifier=Qt.KeyboardModifier.ControlModifier)
+
+    assert pool.worker is not None
 
 
 def test_opening_new_connection_keeps_main_window_alive(app_instance, qtbot, monkeypatch):

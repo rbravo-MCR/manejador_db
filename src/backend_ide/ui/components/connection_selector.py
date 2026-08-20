@@ -35,19 +35,15 @@ class ConnectionSelector(QWidget):
         self.combo.setMinimumWidth(180)
         self.combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        self.env_badge = QLabel(" [DEV] ")
+        self.env_badge = QLabel("DEV")
+        self.env_badge.setObjectName("environment_badge")
+        self.env_badge.setProperty("environment", Environment.DEVELOPMENT.value)
         self.env_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.env_badge.setFixedSize(58, 24)
 
         self.btn_new = QPushButton("Nueva conexión")
         self.btn_new.setFixedHeight(32)
         self.btn_new.setToolTip("Abrir diálogo para crear una nueva conexión a base de datos")
-
-        badge_style = (
-            "background-color: #89b4fa; color: #181825; "
-            "font-weight: bold; border-radius: 4px; padding: 2px 6px;"
-        )
-        self.env_badge.setStyleSheet(badge_style)
 
         self.btn_edit = QPushButton("Editar")
         self.btn_edit.setFixedHeight(32)
@@ -113,20 +109,20 @@ class ConnectionSelector(QWidget):
         if not profile:
             return
 
-        env_val = profile.environment.value.upper()
-        self.env_badge.setText(f" [{env_val[:4]}] ")
-
-        color_map = {
-            Environment.DEVELOPMENT: "#89b4fa",
-            Environment.TESTING: "#a6e3a1",
-            Environment.STAGING: "#f9e2af",
-            Environment.PRODUCTION: "#f38ba8",
+        env_labels = {
+            Environment.DEVELOPMENT: "DEV",
+            Environment.TESTING: "TEST",
+            Environment.STAGING: "STG",
+            Environment.PRODUCTION: "PROD",
         }
-        bg_color = profile.color or color_map.get(profile.environment, "#89b4fa")
-        style = (
-            f"background-color: {bg_color}; color: #11111b; "
-            "font-weight: bold; border-radius: 4px; padding: 2px 6px;"
-        )
-        self.env_badge.setStyleSheet(style)
+        self.env_badge.setText(env_labels[profile.environment])
+        self.env_badge.setProperty("environment", profile.environment.value)
+        if profile.color:
+            text_color = self._theme_manager.current_palette.text_on_accent
+            self.env_badge.setStyleSheet(f"background-color: {profile.color}; color: {text_color};")
+        else:
+            self.env_badge.setStyleSheet("")
+        self.env_badge.style().unpolish(self.env_badge)
+        self.env_badge.style().polish(self.env_badge)
 
         self.connection_changed.emit(profile.id)

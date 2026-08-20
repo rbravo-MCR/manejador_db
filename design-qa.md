@@ -67,5 +67,23 @@ Resultado de la revisión:
 - El encabezado compacto del explorador integra contador, refresco y nueva conexión.
 - Iconos, texto, bordes y estados mantienen contraste en temas claro y oscuro.
 - Los controles permanecen visibles y alineados en el tamaño mínimo de 1100 × 700.
+- `Ctrl+Enter` ejecuta la consulta del editor activo mediante el mismo flujo asíncrono del botón.
 
 Sin limitaciones visuales conocidas.
+
+## Trazabilidad del rediseño
+
+| Requisito | Evidencia |
+| --- | --- |
+| Barra superior en tres zonas | `test_top_bar_groups_controls_by_documented_function` |
+| Controles visibles a 1340 × 840 y 1100 × 700 | `test_documented_window_sizes_have_no_clipped_toolbar_controls` y cuatro capturas abiertas |
+| Explorador inicial de 340 px y mínimo de 280 px | prueba geométrica de ventana y `test_explorer_header_contains_summary_and_compact_actions` |
+| Editor/resultados 65/35 y mínimos 240/180 px | `test_documented_window_sizes_have_no_clipped_toolbar_controls` |
+| Sistema, Claro y Oscuro persistentes | `test_theme_manager_persists_all_documented_modes`, `test_system_theme_resolves_to_a_concrete_palette` y `test_theme_control_exposes_system_light_and_dark` |
+| `Ejecutar` como única acción primaria | estructura y textos comprobados en `test_top_bar_groups_controls_by_documented_function`; capturas claro/oscuro |
+| Acciones futuras deshabilitadas | estado de `Diagrama ER` comprobado en `test_top_bar_groups_controls_by_documented_function` |
+| Refrescar y agregar conexión desde el explorador | `test_explorer_header_actions_emit_their_documented_requests` |
+| Ejecución por teclado | `test_ctrl_enter_executes_the_active_query` |
+| Consultas e inspecciones fuera del hilo UI | `test_query_worker_background_execution`, `test_schema_worker_emits_database_names_and_schema` y `test_table_columns_worker_emits_fields_and_closes_transient_connection` |
+| Conservación de flujos de conexión y consulta | `test_execute_uses_active_connection_and_displays_real_rows` y pruebas de perfiles/cambio de base |
+| Estilos centralizados en componentes rediseñados | `ThemeManager`, propiedades dinámicas del entorno y tokens de `ThemePalette`; el color personalizado del perfil permanece como dato explícito del usuario |

@@ -154,6 +154,29 @@ class ThemeManager(QObject):
             font-weight: 700;
         }}
 
+        QLabel#environment_badge {{
+            color: {p.text_on_accent};
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-weight: 700;
+        }}
+
+        QLabel#environment_badge[environment="development"] {{
+            background-color: {p.accent};
+        }}
+
+        QLabel#environment_badge[environment="testing"] {{
+            background-color: {p.success};
+        }}
+
+        QLabel#environment_badge[environment="staging"] {{
+            background-color: {p.warning};
+        }}
+
+        QLabel#environment_badge[environment="production"] {{
+            background-color: {p.danger};
+        }}
+
         QLabel[status="loading"] {{
             color: {p.info};
             padding: 2px 4px;
@@ -249,7 +272,7 @@ class ThemeManager(QObject):
 
         QPushButton:pressed, QToolButton:pressed {{
             background-color: {p.accent};
-            color: #11111b;
+            color: {p.text_on_accent};
         }}
 
         QPushButton:disabled, QToolButton:disabled {{
@@ -258,25 +281,10 @@ class ThemeManager(QObject):
             border-color: {p.border};
         }}
 
-        /* Primary Action Buttons */
-        QPushButton#btn_new_conn {{
-            background-color: {p.accent};
-            color: #11111b;
-            font-weight: bold;
-            border: 1px solid {p.accent};
-            padding: 6px 16px;
-            border-radius: 6px;
-        }}
-
-        QPushButton#btn_new_conn:hover {{
-            background-color: {p.accent_hover};
-            border-color: {p.accent_hover};
-            color: #11111b;
-        }}
-
+        /* Primary Action Button */
         QPushButton#btn_execute {{
             background-color: {p.success};
-            color: #11111b;
+            color: {p.text_on_accent};
             font-weight: bold;
             border: 1px solid {p.success};
             padding: 6px 18px;
@@ -286,7 +294,7 @@ class ThemeManager(QObject):
         QPushButton#btn_execute:hover {{
             background-color: {p.success_hover};
             border-color: {p.success_hover};
-            color: #11111b;
+            color: {p.text_on_accent};
         }}
 
         QToolButton#theme_toggle_btn, QToolButton#icon_button {{
@@ -312,7 +320,7 @@ class ThemeManager(QObject):
             background-color: {p.bg_surface};
             border: 1px solid {p.border};
             selection-background-color: {p.accent};
-            selection-color: #11111b;
+            selection-color: {p.text_on_accent};
             padding: 4px;
             border-radius: 6px;
         }}

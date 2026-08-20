@@ -85,7 +85,7 @@ class DatabaseExplorerWidget(QWidget):
         database_layout.setSpacing(4)
 
         self.cmb_database = QComboBox()
-        self.cmb_database.setMinimumHeight(28)
+        self.cmb_database.setFixedHeight(32)
         self.cmb_database.setToolTip("Cambiar la base de datos activa")
         self.cmb_database.currentTextChanged.connect(self._emit_database_changed)
 
@@ -94,6 +94,7 @@ class DatabaseExplorerWidget(QWidget):
         # 3. Filter Search Box
         self.txt_filter = QLineEdit()
         self.txt_filter.setObjectName("search_explorer")
+        self.txt_filter.setFixedHeight(32)
         self.txt_filter.setPlaceholderText("Filtrar tablas...")
         self.txt_filter.setClearButtonEnabled(True)
         self.filter_action = self.txt_filter.addAction(

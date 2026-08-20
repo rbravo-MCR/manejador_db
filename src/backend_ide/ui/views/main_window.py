@@ -2,7 +2,7 @@
 
 import qtawesome as qta
 from PySide6.QtCore import Qt, QThreadPool, QTimer
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -122,6 +122,10 @@ class MainWindow(QMainWindow):
 
         self.btn_execute.clicked.connect(self.execute_current_query)
         self.btn_new_query.clicked.connect(self.add_new_query_tab)
+        self.execute_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
+        self.execute_shortcut.activated.connect(self.execute_current_query)
+        self.execute_keypad_shortcut = QShortcut(QKeySequence("Ctrl+Enter"), self)
+        self.execute_keypad_shortcut.activated.connect(self.execute_current_query)
 
         center_layout.addWidget(self.btn_execute)
         center_layout.addWidget(self.btn_new_query)
@@ -200,7 +204,9 @@ class MainWindow(QMainWindow):
     def _refresh_action_icons(self, _mode_str: str | None = None) -> None:
         """Repaint top-level workflow actions after a theme change."""
         color = self._theme_manager.current_palette.text_secondary
-        self.btn_execute.setIcon(qta.icon("fa6s.play", color="#11111b"))
+        self.btn_execute.setIcon(
+            qta.icon("fa6s.play", color=self._theme_manager.current_palette.text_on_accent)
+        )
         self.btn_new_query.setIcon(qta.icon("fa6s.file-circle-plus", color=color))
         self.btn_er_diagram.setIcon(qta.icon("fa6s.diagram-project", color=color))
 
