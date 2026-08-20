@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QSize
 
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.domain.connection import ConnectionProfile, Environment
+from backend_ide.ui.theme import ThemeManager
 
 
 class ConnectionSelector(QWidget):
@@ -20,6 +21,7 @@ class ConnectionSelector(QWidget):
         self.setFixedHeight(36)
         self.service = connection_service or ConnectionService()
         self._profiles: list[ConnectionProfile] = []
+        self._theme_manager = ThemeManager.get_instance()
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -38,7 +40,6 @@ class ConnectionSelector(QWidget):
         self.env_badge.setFixedSize(58, 24)
 
         self.btn_new = QPushButton("Nueva conexión")
-        self.btn_new.setIcon(qta.icon("fa6s.plug-circle-plus"))
         self.btn_new.setFixedHeight(32)
         self.btn_new.setToolTip("Abrir diálogo para crear una nueva conexión a base de datos")
 
@@ -49,7 +50,6 @@ class ConnectionSelector(QWidget):
         self.env_badge.setStyleSheet(badge_style)
 
         self.btn_edit = QPushButton("Editar")
-        self.btn_edit.setIcon(qta.icon("fa6s.pen-to-square"))
         self.btn_edit.setFixedHeight(32)
         self.btn_edit.setToolTip("Editar parámetros de la conexión seleccionada")
 
@@ -64,6 +64,14 @@ class ConnectionSelector(QWidget):
         layout.addWidget(self.btn_edit, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         self.refresh_profiles()
+        self._theme_manager.theme_changed.connect(self._refresh_icons)
+        self._refresh_icons()
+
+    def _refresh_icons(self, _mode_str: str | None = None) -> None:
+        """Keep connection actions legible in every appearance mode."""
+        color = self._theme_manager.current_palette.text_secondary
+        self.btn_new.setIcon(qta.icon("fa6s.plug-circle-plus", color=color))
+        self.btn_edit.setIcon(qta.icon("fa6s.pen-to-square", color=color))
 
     def refresh_profiles(self) -> None:
         """Reload saved profiles into combo box."""

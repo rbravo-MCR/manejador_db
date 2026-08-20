@@ -77,6 +77,7 @@ Implement this shape in `ThemeManager`:
 ```python
 SETTINGS_KEY = "appearance/theme"
 
+
 def __init__(self, settings: QSettings | None = None) -> None:
     super().__init__()
     self._settings = settings or QSettings("BackendIDE", "BackendIDE")
@@ -88,9 +89,11 @@ def __init__(self, settings: QSettings | None = None) -> None:
     self._resolved_mode = self._resolve_mode(self._mode)
     self._palette = self._palette_for(self._resolved_mode)
 
+
 @property
 def resolved_mode(self) -> ThemeMode:
     return self._resolved_mode
+
 
 def _resolve_mode(self, mode: ThemeMode) -> ThemeMode:
     if mode != ThemeMode.SYSTEM:
@@ -98,8 +101,10 @@ def _resolve_mode(self, mode: ThemeMode) -> ThemeMode:
     scheme = QApplication.styleHints().colorScheme()
     return ThemeMode.LIGHT if scheme == Qt.ColorScheme.Light else ThemeMode.DARK
 
+
 def _palette_for(self, mode: ThemeMode) -> ThemePalette:
     return LIGHT_PALETTE if mode == ThemeMode.LIGHT else DARK_PALETTE
+
 
 def set_mode(self, mode: ThemeMode, *, persist: bool = True) -> None:
     self._mode = mode
@@ -110,6 +115,7 @@ def set_mode(self, mode: ThemeMode, *, persist: bool = True) -> None:
         self._settings.sync()
     self.apply_theme()
     self.theme_changed.emit(mode.value)
+
 
 def toggle_theme(self) -> ThemeMode:
     new_mode = ThemeMode.LIGHT if self._resolved_mode == ThemeMode.DARK else ThemeMode.DARK

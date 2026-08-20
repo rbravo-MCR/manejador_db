@@ -115,8 +115,7 @@ class ResultsWidget(QWidget):
         if result.has_error:
             self.results_tabs.setCurrentWidget(self.txt_messages)
             msg = (
-                f"Error de ejecución SQL ({result.execution_time_ms} ms):\n\n"
-                f"{result.error_message}"
+                f"Error de ejecución SQL ({result.execution_time_ms} ms):\n\n{result.error_message}"
             )
             self.txt_messages.setPlainText(msg)
             self.lbl_stats.setText(f"Error en {result.execution_time_ms} ms")

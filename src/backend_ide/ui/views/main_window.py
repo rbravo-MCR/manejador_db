@@ -70,6 +70,8 @@ class MainWindow(QMainWindow):
         self._is_inspecting = False
         self._theme_manager = ThemeManager.get_instance()
         self._setup_ui()
+        self._theme_manager.theme_changed.connect(self._refresh_action_icons)
+        self._refresh_action_icons()
         self._theme_manager.apply_theme()
         if auto_load_profile:
             QTimer.singleShot(0, self._load_initial_profile)
@@ -107,16 +109,12 @@ class MainWindow(QMainWindow):
         center_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self.btn_execute = QPushButton("Ejecutar")
-        self.btn_execute.setIcon(qta.icon("fa6s.play", color="#11111b"))
         self.btn_execute.setObjectName("btn_execute")
         self.btn_execute.setFixedHeight(32)
         self.btn_execute.setToolTip("Ejecutar consulta activa (Ctrl+Enter)")
 
-        icon_color = self._theme_manager.current_palette.text_primary
         self.btn_new_query = QPushButton("Nueva consulta")
-        self.btn_new_query.setIcon(qta.icon("fa6s.file-circle-plus", color=icon_color))
         self.btn_er_diagram = QPushButton("Diagrama ER")
-        self.btn_er_diagram.setIcon(qta.icon("fa6s.diagram-project", color=icon_color))
         self.btn_new_query.setFixedHeight(32)
         self.btn_er_diagram.setFixedHeight(32)
         self.btn_er_diagram.setEnabled(False)
@@ -198,6 +196,13 @@ class MainWindow(QMainWindow):
 
         self.breadcrumb_bar.set_path("Sin conexión", "—", "—")
         self.conn_selector.connection_changed.connect(self._on_profile_changed)
+
+    def _refresh_action_icons(self, _mode_str: str | None = None) -> None:
+        """Repaint top-level workflow actions after a theme change."""
+        color = self._theme_manager.current_palette.text_secondary
+        self.btn_execute.setIcon(qta.icon("fa6s.play", color="#11111b"))
+        self.btn_new_query.setIcon(qta.icon("fa6s.file-circle-plus", color=color))
+        self.btn_er_diagram.setIcon(qta.icon("fa6s.diagram-project", color=color))
 
     def _load_initial_profile(self) -> None:
         """Inspect the first saved profile when the desktop starts."""

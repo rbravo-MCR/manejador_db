@@ -48,3 +48,24 @@ Evidencia: `/tmp/manejador-db-live-columns.png`.
 ## Resultado
 
 final result: passed
+
+## Distribución completa de ventana
+
+Evidencia del rediseño equilibrado:
+
+- Tema oscuro, 1340 × 840: `/tmp/manejador-db-layout-dark-1340x840.png`
+- Tema oscuro, 1100 × 700: `/tmp/manejador-db-layout-dark-1100x700.png`
+- Tema claro, 1340 × 840: `/tmp/manejador-db-layout-light-1340x840.png`
+- Tema claro, 1100 × 700: `/tmp/manejador-db-layout-light-1100x700.png`
+
+Resultado de la revisión:
+
+- La barra superior conserva las zonas de conexión, consulta y aplicación sin recortes.
+- `Ejecutar` es la única acción primaria; `Diagrama ER` comunica su estado deshabilitado.
+- El explorador mantiene 340 px inicialmente y puede reducirse hasta 280 px.
+- Editor y resultados conservan una proporción inicial aproximada de 65/35.
+- El encabezado compacto del explorador integra contador, refresco y nueva conexión.
+- Iconos, texto, bordes y estados mantienen contraste en temas claro y oscuro.
+- Los controles permanecen visibles y alineados en el tamaño mínimo de 1100 × 700.
+
+Sin limitaciones visuales conocidas.

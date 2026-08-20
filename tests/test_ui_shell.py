@@ -100,6 +100,23 @@ def test_connection_controls_follow_context_then_actions(app_instance, qtbot):
     assert window.conn_selector.combo.minimumWidth() == 180
 
 
+@pytest.mark.parametrize("size", [(1340, 840), (1100, 700)])
+def test_documented_window_sizes_have_no_clipped_toolbar_controls(app_instance, qtbot, size):
+    """Every top-level control must remain visible at normal and minimum window sizes."""
+    app, window = app_instance
+    qtbot.addWidget(window)
+    window.resize(*size)
+    window.show()
+    app.processEvents()
+
+    top_rect = window.top_bar.rect()
+    for control in (window.conn_selector, window.query_toolbar, window.theme_toggle):
+        rect = control.geometry()
+        assert top_rect.contains(rect.topLeft())
+        assert top_rect.contains(rect.bottomRight())
+        assert control.isVisible()
+
+
 def test_theme_control_exposes_system_light_and_dark(app_instance, qtbot):
     """The compact theme control must expose every documented appearance mode."""
     _, window = app_instance

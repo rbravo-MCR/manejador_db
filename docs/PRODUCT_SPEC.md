@@ -320,8 +320,7 @@ Example conceptual interface:
 
 ```python
 class DatabaseInspector(Protocol):
-    def inspect_database(self) -> DatabaseSchema:
-        ...
+    def inspect_database(self) -> DatabaseSchema: ...
 ```
 
 Implementations:
