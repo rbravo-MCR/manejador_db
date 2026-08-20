@@ -154,26 +154,41 @@ class ThemeManager(QObject):
             font-weight: 700;
         }}
 
-        QLabel#environment_badge {{
-            color: {p.text_on_accent};
-            border-radius: 4px;
-            padding: 2px 6px;
-            font-weight: 700;
+        QWidget#environment_indicator {{
+            background: transparent;
+            border: none;
         }}
 
-        QLabel#environment_badge[environment="development"] {{
+        QLabel#environment_text {{
+            color: {p.text_secondary};
+            background: transparent;
+            border: none;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+
+        QLabel#environment_dot {{
+            border: none;
+            border-radius: 4px;
+        }}
+
+        QLabel#environment_dot[environment="none"] {{
+            background-color: {p.text_muted};
+        }}
+
+        QLabel#environment_dot[environment="development"] {{
             background-color: {p.accent};
         }}
 
-        QLabel#environment_badge[environment="testing"] {{
+        QLabel#environment_dot[environment="testing"] {{
             background-color: {p.success};
         }}
 
-        QLabel#environment_badge[environment="staging"] {{
+        QLabel#environment_dot[environment="staging"] {{
             background-color: {p.warning};
         }}
 
-        QLabel#environment_badge[environment="production"] {{
+        QLabel#environment_dot[environment="production"] {{
             background-color: {p.danger};
         }}
 

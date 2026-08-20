@@ -66,6 +66,8 @@ Resultado de la revisión:
 - Editor y resultados conservan una proporción inicial aproximada de 65/35.
 - El encabezado compacto del explorador integra contador, refresco y nueva conexión.
 - Iconos, texto, bordes y estados mantienen contraste en temas claro y oscuro.
+- El entorno se presenta como un punto semántico y nombre completo (`Desarrollo`,
+  `Pruebas`, `Preproducción` o `Producción`), sin fondo ni borde que sugieran interacción.
 - Los controles permanecen visibles y alineados en el tamaño mínimo de 1100 × 700.
 - `Ctrl+Enter` ejecuta la consulta del editor activo mediante el mismo flujo asíncrono del botón.
 
@@ -83,7 +85,8 @@ Sin limitaciones visuales conocidas.
 | `Ejecutar` como única acción primaria | estructura y textos comprobados en `test_top_bar_groups_controls_by_documented_function`; capturas claro/oscuro |
 | Acciones futuras deshabilitadas | estado de `Diagrama ER` comprobado en `test_top_bar_groups_controls_by_documented_function` |
 | Refrescar y agregar conexión desde el explorador | `test_explorer_header_actions_emit_their_documented_requests` |
+| Estado de entorno explícito y no interactivo | `test_environment_indicator_uses_full_semantic_labels_without_badge_chrome` y cuatro capturas abiertas |
 | Ejecución por teclado | `test_ctrl_enter_executes_the_active_query` |
 | Consultas e inspecciones fuera del hilo UI | `test_query_worker_background_execution`, `test_schema_worker_emits_database_names_and_schema` y `test_table_columns_worker_emits_fields_and_closes_transient_connection` |
 | Conservación de flujos de conexión y consulta | `test_execute_uses_active_connection_and_displays_real_rows` y pruebas de perfiles/cambio de base |
-| Estilos centralizados en componentes rediseñados | `ThemeManager`, propiedades dinámicas del entorno y tokens de `ThemePalette`; el color personalizado del perfil permanece como dato explícito del usuario |
+| Estilos centralizados en componentes rediseñados | `ThemeManager`, propiedades dinámicas del entorno y tokens de `ThemePalette`; el color personalizado del perfil permanece como metadato y no reemplaza la semántica del entorno |

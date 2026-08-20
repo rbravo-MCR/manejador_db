@@ -29,6 +29,7 @@ from backend_ide.infrastructure.database.schema_inspection_worker import (
 from backend_ide.infrastructure.database.table_columns_worker import TableColumnsWorker
 from backend_ide.infrastructure.logging import get_logger
 from backend_ide.ui.components import BreadcrumbWidget, ConnectionSelector, ThemeToggleButton
+from backend_ide.ui.components.environment_indicator import environment_label
 from backend_ide.ui.dialogs import ConnectionDialog
 from backend_ide.ui.editor import SqlEditorWidget
 from backend_ide.ui.explorer import DatabaseExplorerWidget
@@ -282,7 +283,7 @@ class MainWindow(QMainWindow):
         self.explorer_widget.load_schema_model(profile.name, result.schema)
         first_schema = result.schema.schemas[0].name if result.schema.schemas else "—"
         self.breadcrumb_bar.set_path(profile.name, result.schema.database_name, first_schema)
-        environment = profile.environment.value.capitalize()
+        environment = environment_label(profile.environment)
         self.status_lbl_conn.setText(
             f" Conectado: {profile.name} / {result.schema.database_name} ({environment}) "
         )

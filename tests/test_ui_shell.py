@@ -7,7 +7,7 @@ import pytest
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
-from backend_ide.domain.connection import ConnectionProfile
+from backend_ide.domain.connection import ConnectionProfile, Environment
 from backend_ide.domain.schema import DatabaseSchema, Schema, Table
 from backend_ide.infrastructure.database.schema_inspection_worker import DatabaseInspectionResult
 from backend_ide.ui.app import create_app
@@ -55,7 +55,7 @@ def test_header_rows_stay_compact_and_controls_are_vertically_aligned(app_instan
     controls = [
         window.conn_selector.btn_new,
         window.conn_selector.combo,
-        window.conn_selector.env_badge,
+        window.conn_selector.env_indicator,
         window.conn_selector.btn_edit,
     ]
     assert all(control.height() <= 36 for control in controls)
@@ -96,13 +96,13 @@ def test_connection_controls_follow_context_then_actions(app_instance, qtbot):
     assert widgets == [
         window.conn_selector.lbl_profile,
         window.conn_selector.combo,
-        window.conn_selector.env_badge,
+        window.conn_selector.env_indicator,
         window.conn_selector.btn_new,
         window.conn_selector.btn_edit,
     ]
     assert window.conn_selector.combo.minimumWidth() == 180
-    assert window.conn_selector.env_badge.text() == "DEV"
-    assert window.conn_selector.env_badge.property("environment") == "development"
+    assert window.conn_selector.env_indicator.text_label.text() == "Desarrollo"
+    assert window.conn_selector.env_indicator.dot.property("environment") == "development"
 
 
 @pytest.mark.parametrize("size", [(1340, 840), (1100, 700)])
@@ -110,6 +110,7 @@ def test_documented_window_sizes_have_no_clipped_toolbar_controls(app_instance, 
     """Every top-level control must remain visible at normal and minimum window sizes."""
     app, window = app_instance
     qtbot.addWidget(window)
+    window.conn_selector.env_indicator.set_environment(Environment.PRODUCTION)
     window.resize(*size)
     window.show()
     app.processEvents()
@@ -120,6 +121,22 @@ def test_documented_window_sizes_have_no_clipped_toolbar_controls(app_instance, 
         assert top_rect.contains(rect.topLeft())
         assert top_rect.contains(rect.bottomRight())
         assert control.isVisible()
+
+    connection_rect = window.conn_selector.rect()
+    for control in (
+        window.conn_selector.lbl_profile,
+        window.conn_selector.combo,
+        window.conn_selector.env_indicator,
+        window.conn_selector.btn_new,
+        window.conn_selector.btn_edit,
+    ):
+        rect = control.geometry()
+        assert connection_rect.contains(rect.topLeft())
+        assert connection_rect.contains(rect.bottomRight())
+        if control is window.conn_selector.combo:
+            assert control.width() >= control.minimumWidth() == 180
+        else:
+            assert control.width() >= control.minimumSizeHint().width()
 
     explorer_width, workspace_width = window.main_splitter.sizes()
     editor_height, results_height = window.workspace_splitter.sizes()
@@ -183,6 +200,24 @@ def test_system_theme_resolves_to_a_concrete_palette(qapp, tmp_path):
     assert manager.resolved_mode in (ThemeMode.LIGHT, ThemeMode.DARK)
     expected = LIGHT_PALETTE if manager.resolved_mode == ThemeMode.LIGHT else DARK_PALETTE
     assert manager.current_palette == expected
+
+
+def test_system_theme_reacts_to_operating_system_appearance(qapp, tmp_path, monkeypatch):
+    """A Qt appearance notification must re-resolve System without changing the preference."""
+    settings = QSettings(str(tmp_path / "system-change.ini"), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings=settings)
+    manager.set_mode(ThemeMode.SYSTEM)
+    target_mode = ThemeMode.LIGHT if manager.resolved_mode == ThemeMode.DARK else ThemeMode.DARK
+    monkeypatch.setattr(manager, "_resolve_mode", lambda _mode: target_mode)
+
+    manager._on_system_color_scheme_changed(Qt.ColorScheme.Unknown)
+
+    assert manager.current_mode == ThemeMode.SYSTEM
+    assert manager.resolved_mode == target_mode
+    assert manager.current_palette == (
+        LIGHT_PALETTE if target_mode == ThemeMode.LIGHT else DARK_PALETTE
+    )
+    assert settings.value("appearance/theme") == ThemeMode.SYSTEM.value
 
 
 def test_workspace_tabs_management(app_instance, qtbot):
@@ -290,6 +325,7 @@ def test_inspection_success_updates_explorer_database_breadcrumb_and_status(qtbo
     assert "db_outlet" in window.breadcrumb_bar.lbl_db.text()
     assert "B2B_OUTLET" in window.breadcrumb_bar.lbl_conn.text()
     assert "Conectado" in window.status_lbl_conn.text()
+    assert "Desarrollo" in window.status_lbl_conn.text()
 
 
 def test_database_selection_queues_candidate_for_selected_database(qtbot):

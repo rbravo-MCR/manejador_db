@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QSize
 
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.domain.connection import ConnectionProfile, Environment
+from backend_ide.ui.components.environment_indicator import EnvironmentIndicator
 from backend_ide.ui.theme import ThemeManager
 
 
@@ -35,11 +36,7 @@ class ConnectionSelector(QWidget):
         self.combo.setMinimumWidth(180)
         self.combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        self.env_badge = QLabel("DEV")
-        self.env_badge.setObjectName("environment_badge")
-        self.env_badge.setProperty("environment", Environment.DEVELOPMENT.value)
-        self.env_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.env_badge.setFixedSize(58, 24)
+        self.env_indicator = EnvironmentIndicator()
 
         self.btn_new = QPushButton("Nueva conexión")
         self.btn_new.setFixedHeight(32)
@@ -55,7 +52,7 @@ class ConnectionSelector(QWidget):
 
         layout.addWidget(self.lbl_profile, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.combo, alignment=Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(self.env_badge, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.env_indicator, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.btn_new, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.btn_edit, alignment=Qt.AlignmentFlag.AlignVCenter)
 
@@ -104,25 +101,12 @@ class ConnectionSelector(QWidget):
         return True
 
     def _on_connection_changed(self, index: int) -> None:
-        """Update environment badge styling when selection changes."""
+        """Update the semantic environment context when selection changes."""
         profile = self.get_selected_profile()
         if not profile:
+            self.env_indicator.set_environment(None)
             return
 
-        env_labels = {
-            Environment.DEVELOPMENT: "DEV",
-            Environment.TESTING: "TEST",
-            Environment.STAGING: "STG",
-            Environment.PRODUCTION: "PROD",
-        }
-        self.env_badge.setText(env_labels[profile.environment])
-        self.env_badge.setProperty("environment", profile.environment.value)
-        if profile.color:
-            text_color = self._theme_manager.current_palette.text_on_accent
-            self.env_badge.setStyleSheet(f"background-color: {profile.color}; color: {text_color};")
-        else:
-            self.env_badge.setStyleSheet("")
-        self.env_badge.style().unpolish(self.env_badge)
-        self.env_badge.style().polish(self.env_badge)
+        self.env_indicator.set_environment(profile.environment)
 
         self.connection_changed.emit(profile.id)
