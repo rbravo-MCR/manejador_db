@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QSettings, Qt, Signal
 from PySide6.QtWidgets import QApplication
 
 from backend_ide.ui.theme.tokens import DARK_PALETTE, LIGHT_PALETTE, ThemeMode, ThemePalette
@@ -14,11 +14,22 @@ class ThemeManager(QObject):
     theme_changed = Signal(str)  # Emits new mode name ("light" or "dark")
 
     _instance: ThemeManager | None = None
+    SETTINGS_KEY = "appearance/theme"
 
-    def __init__(self) -> None:
+    def __init__(self, settings: QSettings | None = None) -> None:
         super().__init__()
-        self._mode: ThemeMode = ThemeMode.DARK
-        self._palette: ThemePalette = DARK_PALETTE
+        self._settings = settings or QSettings("BackendIDE", "BackendIDE")
+        saved_mode = self._settings.value(self.SETTINGS_KEY, ThemeMode.SYSTEM.value, type=str)
+        try:
+            self._mode = ThemeMode(saved_mode)
+        except ValueError:
+            self._mode = ThemeMode.SYSTEM
+        self._resolved_mode = self._resolve_mode(self._mode)
+        self._palette = self._palette_for(self._resolved_mode)
+
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            app.styleHints().colorSchemeChanged.connect(self._on_system_color_scheme_changed)
 
     @classmethod
     def get_instance(cls) -> ThemeManager:
@@ -37,20 +48,44 @@ class ThemeManager(QObject):
         """Return current color palette."""
         return self._palette
 
-    def set_mode(self, mode: ThemeMode) -> None:
-        """Set theme mode and apply stylesheet."""
-        if mode == ThemeMode.SYSTEM:
-            mode = ThemeMode.DARK
+    @property
+    def resolved_mode(self) -> ThemeMode:
+        """Return the concrete Light or Dark mode currently being rendered."""
+        return self._resolved_mode
 
+    def _resolve_mode(self, mode: ThemeMode) -> ThemeMode:
+        if mode != ThemeMode.SYSTEM:
+            return mode
+        app = QApplication.instance()
+        if not isinstance(app, QApplication):
+            return ThemeMode.DARK
+        scheme = app.styleHints().colorScheme()
+        return ThemeMode.LIGHT if scheme == Qt.ColorScheme.Light else ThemeMode.DARK
+
+    @staticmethod
+    def _palette_for(mode: ThemeMode) -> ThemePalette:
+        return LIGHT_PALETTE if mode == ThemeMode.LIGHT else DARK_PALETTE
+
+    def _on_system_color_scheme_changed(self, _scheme: Qt.ColorScheme) -> None:
+        if self._mode == ThemeMode.SYSTEM:
+            self.set_mode(ThemeMode.SYSTEM, persist=False)
+
+    def set_mode(self, mode: ThemeMode, *, persist: bool = True) -> None:
+        """Set theme mode and apply stylesheet."""
         self._mode = mode
-        self._palette = DARK_PALETTE if mode == ThemeMode.DARK else LIGHT_PALETTE
+        self._resolved_mode = self._resolve_mode(mode)
+        self._palette = self._palette_for(self._resolved_mode)
+
+        if persist:
+            self._settings.setValue(self.SETTINGS_KEY, mode.value)
+            self._settings.sync()
 
         self.apply_theme()
         self.theme_changed.emit(self._mode.value)
 
     def toggle_theme(self) -> ThemeMode:
         """Toggle between Dark and Light mode and return new mode."""
-        new_mode = ThemeMode.LIGHT if self._mode == ThemeMode.DARK else ThemeMode.DARK
+        new_mode = ThemeMode.LIGHT if self._resolved_mode == ThemeMode.DARK else ThemeMode.DARK
         self.set_mode(new_mode)
         return new_mode
 
