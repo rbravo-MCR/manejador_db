@@ -190,6 +190,7 @@ def test_environment_indicator_uses_full_semantic_labels_without_badge_chrome(qt
     assert indicator.dot.property("environment") == "none"
     assert indicator.styleSheet() == ""
     assert indicator.focusPolicy() == Qt.FocusPolicy.NoFocus
+    assert indicator.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
 
 
 def test_connection_selector_uses_semantic_environment_indicator(temp_repo, qtbot):

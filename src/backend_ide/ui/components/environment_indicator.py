@@ -25,6 +25,7 @@ class EnvironmentIndicator(QWidget):
         super().__init__(parent)
         self.setObjectName("environment_indicator")
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(24)
 
