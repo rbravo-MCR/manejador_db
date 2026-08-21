@@ -7,7 +7,7 @@ name = "backend-ide"
 version = "0.1.0"
 description = "A professional desktop Backend Development IDE centered on relational databases, schema intelligence, SQL productivity, code generation, and legacy modernization."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [
     { name = "Backend Development IDE Team" }

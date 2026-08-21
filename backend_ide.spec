@@ -8,7 +8,9 @@ from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_sub
 block_cipher = None
 
 # Collect all resources and dynamic imports for heavy dependencies
-datas = []
+datas = [
+    ("src/backend_ide/ui/resources", "backend_ide/ui/resources"),
+]
 binaries = []
 hiddenimports = [
     "PySide6",
@@ -71,7 +73,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,  # Windowed GUI application (no CMD prompt window)
+    console=False,  # Windowed GUI application
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,
