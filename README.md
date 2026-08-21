@@ -27,18 +27,38 @@ Backend Development IDE busca reunir en una sola aplicación de escritorio:
 Actualmente el repositorio incluye:
 
 - modelo universal de esquemas con serialización JSON;
-- inspector y adaptador inicial para PostgreSQL;
+- adaptador e inspector PostgreSQL con descubrimiento de bases y carga bulk de metadatos;
+- adaptador y proveedor inicial de metadatos para SQLite;
 - perfiles de conexión con secretos almacenados mediante el keyring del sistema;
-- shell de escritorio construido con PySide6;
-- explorador de objetos de base de datos;
-- editor SQL con resaltado, números de línea y completado básico;
-- ejecución de consultas mediante `QThreadPool` y `QRunnable`;
+- shell de escritorio nativo construido con PySide6 y componentes reutilizables;
+- barra superior compacta con grupos de conexión, consulta y apariencia;
+- indicador no interactivo del entorno del perfil seleccionado;
+- explorador en vivo con selector de base de datos, filtro, carga diferida de columnas y
+  generación de consultas comunes;
+- editor SQL con resaltado, pestañas e IntelliSense contextual basado en metadatos en memoria;
+- sugerencias por dialecto, schemas, tablas, vistas, columnas, aliases, funciones y snippets;
+- ejecución no bloqueante del documento o de la selección SQL contra la conexión y base activas;
 - grid de resultados y exportación a CSV y JSON;
-- temas oscuro y claro;
-- 31 pruebas automatizadas.
+- temas Sistema, Claro y Oscuro con selección persistente;
+- 113 pruebas automatizadas.
 
-La conexión completa entre todos los controles de la interfaz y una base real, el sistema de
-seguridad para entornos de producción y el nuevo diseño visual todavía están en desarrollo.
+El proyecto continúa en pre-alpha. La protección adicional para operaciones en producción, las
+transacciones explícitas, los adaptadores completos de MySQL/MariaDB y SQL Server, la segunda
+entrega de IntelliSense, los diagramas ER y los generadores permanecen en desarrollo o planeados.
+
+### Interfaz actual
+
+La ventana principal mantiene una distribución compacta orientada a desarrollo:
+
+- conexión a la izquierda, acciones SQL al centro y apariencia a la derecha;
+- explorador ajustable junto al workspace SQL;
+- editor y resultados distribuidos inicialmente en proporción aproximada 65/35;
+- `Ejecutar` como única acción primaria y `Diagrama ER` deshabilitado hasta implementar su flujo;
+- soporte visual validado en temas Claro y Oscuro a 1340 × 840 y 1100 × 700.
+
+El IntelliSense usa snapshots de metadatos por conexión y base de datos. No consulta el motor en
+cada pulsación: el editor aplica debounce de 150 ms, abre inmediatamente al escribir punto y
+admite invocación manual mediante `Ctrl/Cmd+Space`.
 
 ## Requisitos
 
@@ -73,6 +93,9 @@ uv run ruff check .
 
 # Verificar formato sin modificar archivos
 uv run ruff format --check .
+
+# Construir los paquetes distribuibles
+uv build
 ```
 
 ## Stack tecnológico
@@ -129,6 +152,7 @@ de datos que puedan tardar se ejecutan fuera del hilo principal de Qt.
 - [Arquitectura](docs/ARCHITECTURE%281%29.md)
 - [Decisiones de arquitectura](docs/DECISIONS.md)
 - [Roadmap técnico](docs/ROADMAP%2820260813-213518%29.md)
+- [Especificación del editor SQL](docs/FEATURE%20SPEC%20%E2%80%94%20Editor%20SQL%20con%20Autocompletado%20Inteligente.md)
 - [Plan de trabajo original](Plan%20de%20trabajo.md)
 
 ## Seguridad
@@ -144,7 +168,7 @@ El proyecto evoluciona por fases. Antes de enviar cambios:
 
 1. conserva las dependencias del dominio independientes de Qt y de los drivers;
 2. agrega o actualiza las pruebas correspondientes;
-3. ejecuta pytest y Ruff;
+3. ejecuta pytest, Ruff y la verificación de formato;
 4. documenta las decisiones que modifiquen límites arquitectónicos.
 
 ## Licencia

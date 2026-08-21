@@ -8,6 +8,15 @@
 
 **Tech Stack:** Python 3.14, PySide6, pytest, pytest-qt, Ruff, uv
 
+## Execution Note
+
+The integrated implementation keeps the approved behavior while extracting
+`EnvironmentIndicator` to `ui/components/environment_indicator.py` as a reusable component.
+Semantic colors remain centralized in `ThemeManager` QSS through the indicator's dynamic
+`environment` property instead of being applied as inline component styles. The final test names
+and visual evidence are recorded in `tests/test_connection_profiles.py`, `tests/test_ui_shell.py`,
+and `design-qa.md`.
+
 ## Global Constraints
 
 - Keep the initial window size at 1340 × 840 and the supported minimum at 1100 × 700.
