@@ -1,6 +1,6 @@
 # Structured Main Window Hierarchy Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the ambiguous abbreviated environment badge with a non-interactive semantic dot and complete Spanish label while preserving the approved main-window hierarchy and responsive layout.
 
@@ -52,7 +52,7 @@ No domain, application-service, storage, database-adapter, worker, or query-exec
 - Consumes: `Environment`, `ThemeManager.get_instance()`, and `ThemePalette` fields `accent`, `success`, `warning`, `danger`, and `text_muted`.
 - Produces: `EnvironmentIndicator.set_environment(environment: Environment | None) -> None`, `EnvironmentIndicator.refresh_palette() -> None`, `EnvironmentIndicator.dot`, and `EnvironmentIndicator.text_label`.
 
-- [ ] **Step 1: Write failing tests for complete localized labels and semantic colors**
+- [x] **Step 1: Write failing tests for complete localized labels and semantic colors**
 
 Add the following import and parameterized test to `tests/test_connection_profiles.py`:
 
@@ -83,7 +83,7 @@ def test_environment_indicator_uses_full_label_and_semantic_color(
     assert f"background-color: {expected_color}" in indicator.dot.styleSheet()
 ```
 
-- [ ] **Step 2: Run the label test to verify it fails**
+- [x] **Step 2: Run the label test to verify it fails**
 
 Run:
 
@@ -93,7 +93,7 @@ uv run pytest tests/test_connection_profiles.py::test_environment_indicator_uses
 
 Expected: FAIL because `EnvironmentIndicator` does not exist.
 
-- [ ] **Step 3: Write failing tests for empty state and non-interactivity**
+- [x] **Step 3: Write failing tests for empty state and non-interactivity**
 
 Append to `tests/test_connection_profiles.py`:
 
@@ -112,7 +112,7 @@ def test_environment_indicator_is_informational_and_has_neutral_empty_state(qtbo
     assert "entorno" in indicator.toolTip().lower()
 ```
 
-- [ ] **Step 4: Run the empty-state test to verify it fails**
+- [x] **Step 4: Run the empty-state test to verify it fails**
 
 Run:
 
@@ -122,7 +122,7 @@ uv run pytest tests/test_connection_profiles.py::test_environment_indicator_is_i
 
 Expected: FAIL because `EnvironmentIndicator` does not exist.
 
-- [ ] **Step 5: Implement the minimal environment indicator**
+- [x] **Step 5: Implement the minimal environment indicator**
 
 In `src/backend_ide/ui/components/connection_selector.py`, add `QSizePolicy` to the existing widget imports if it is not already present and define this class immediately before `ConnectionSelector`:
 
@@ -187,7 +187,7 @@ class EnvironmentIndicator(QWidget):
 
 Do not add mouse signals, event handlers, actions, menus, borders, filled container styles, or color literals.
 
-- [ ] **Step 6: Run the focused indicator tests**
+- [x] **Step 6: Run the focused indicator tests**
 
 Run:
 
@@ -197,7 +197,7 @@ uv run pytest tests/test_connection_profiles.py -k environment_indicator -v
 
 Expected: 5 parameter cases PASS: four environments plus the neutral empty state.
 
-- [ ] **Step 7: Run lint and commit the focused component**
+- [x] **Step 7: Run lint and commit the focused component**
 
 Run:
 
@@ -228,7 +228,7 @@ git commit -m "feat: add semantic environment indicator"
 - Consumes: `EnvironmentIndicator.set_environment(environment: Environment | None) -> None` and `EnvironmentIndicator.refresh_palette() -> None` from Task 1.
 - Produces: `ConnectionSelector.env_indicator: EnvironmentIndicator`; selected profiles update it through the existing `_on_connection_changed(index: int) -> None` path.
 
-- [ ] **Step 1: Write a failing profile-switching integration test**
+- [x] **Step 1: Write a failing profile-switching integration test**
 
 Append to `tests/test_connection_profiles.py`:
 
@@ -253,7 +253,7 @@ def test_connection_selector_updates_environment_when_profile_changes(temp_repo,
     assert selector.env_indicator.focusPolicy() == Qt.FocusPolicy.NoFocus
 ```
 
-- [ ] **Step 2: Update shell tests to express the approved control order**
+- [x] **Step 2: Update shell tests to express the approved control order**
 
 In `tests/test_ui_shell.py`, replace both references to `window.conn_selector.env_badge` with `window.conn_selector.env_indicator`. In `test_connection_controls_follow_context_then_actions`, keep the exact expected sequence:
 
@@ -279,7 +279,7 @@ assert window.conn_selector.env_indicator.text_label.text() in {
 assert window.conn_selector.env_indicator.width() > 8
 ```
 
-- [ ] **Step 3: Run the integration and shell tests to verify they fail**
+- [x] **Step 3: Run the integration and shell tests to verify they fail**
 
 Run:
 
@@ -292,7 +292,7 @@ uv run pytest \
 
 Expected: FAIL because `ConnectionSelector` still exposes and updates `env_badge`.
 
-- [ ] **Step 4: Replace the old badge with the new indicator**
+- [x] **Step 4: Replace the old badge with the new indicator**
 
 In `ConnectionSelector.__init__`, replace the old `env_badge` creation with:
 
@@ -328,7 +328,7 @@ def _on_connection_changed(self, index: int) -> None:
 
 Do not use `profile.color`: the approved indicator uses semantic environment colors from the active theme.
 
-- [ ] **Step 5: Run focused connection and shell tests**
+- [x] **Step 5: Run focused connection and shell tests**
 
 Run:
 
@@ -338,7 +338,7 @@ uv run pytest tests/test_connection_profiles.py tests/test_ui_shell.py -v
 
 Expected: all tests PASS, including profile switching, control order, theme behavior, and both documented window sizes.
 
-- [ ] **Step 6: Format, lint, and commit the integration**
+- [x] **Step 6: Format, lint, and commit the integration**
 
 Run:
 
@@ -369,7 +369,7 @@ git commit -m "refactor: clarify connection environment context"
 - Consumes: the integrated main window from Task 2.
 - Produces: four visual QA captures, documented outcomes, a fully checked plan, and a clean verified branch ready to push to the existing PR.
 
-- [ ] **Step 1: Capture the four approved viewport and theme combinations**
+- [x] **Step 1: Capture the four approved viewport and theme combinations**
 
 Use the existing PySide6 screenshot harness pattern from `docs/superpowers/plans/2026-08-14-balanced-window-layout.md`. Produce these exact files:
 
@@ -382,7 +382,7 @@ Use the existing PySide6 screenshot harness pattern from `docs/superpowers/plans
 
 For each capture, set the requested `ThemeMode`, resize the window, show it, call `app.processEvents()`, and save `window.grab()` to the matching path.
 
-- [ ] **Step 2: Inspect every screenshot against the approved design**
+- [x] **Step 2: Inspect every screenshot against the approved design**
 
 Use the local image viewer on all four files. Confirm every item explicitly:
 
@@ -398,7 +398,7 @@ Use the local image viewer on all four files. Confirm every item explicitly:
 
 If any item fails, add a focused failing regression test, make the smallest correction in the owning component, rerun the focused tests, and repeat all four captures before proceeding.
 
-- [ ] **Step 3: Append the visual evidence to `design-qa.md`**
+- [x] **Step 3: Append the visual evidence to `design-qa.md`**
 
 Add a section named `## Jerarquía estructurada e indicador de entorno` containing:
 
@@ -420,7 +420,7 @@ Add a section named `## Jerarquía estructurada e indicador de entorno` containi
 
 Record any discovered limitation instead of claiming it does not exist.
 
-- [ ] **Step 4: Run the complete verification suite**
+- [x] **Step 4: Run the complete verification suite**
 
 Run:
 
@@ -434,7 +434,7 @@ git diff --check
 
 Expected: the full test suite passes, Ruff reports no violations or formatting changes, both distribution artifacts build successfully, and Git reports no whitespace errors.
 
-- [ ] **Step 5: Mark this plan complete and commit QA evidence**
+- [x] **Step 5: Mark this plan complete and commit QA evidence**
 
 Change every completed checkbox in this plan from `[ ]` to `[x]`, then run:
 
@@ -446,7 +446,7 @@ git status --short
 
 Expected: the commit succeeds. Only `.superpowers/` may remain as local visual-companion state; it must not be staged or committed.
 
-- [ ] **Step 6: Verify publication scope before updating the existing PR**
+- [x] **Step 6: Verify publication scope before updating the existing PR**
 
 Run:
 

@@ -171,3 +171,25 @@ primera entrega funcional.
   Qt para poder sustituirse o ampliarse con un parser avanzado sin cambiar el editor.
 
 Resultado del autocompletado: passed.
+
+## QA de integración final
+
+### Evidencia regenerada
+
+- Ventana oscura, 1340 × 840: `/tmp/manejador-db-integration-dark-1340x840.png`.
+- Ventana oscura, 1100 × 700: `/tmp/manejador-db-integration-dark-1100x700.png`.
+- Ventana clara, 1340 × 840: `/tmp/manejador-db-integration-light-1340x840.png`.
+- Ventana clara, 1100 × 700: `/tmp/manejador-db-integration-light-1100x700.png`.
+- Popup IntelliSense oscuro: `/tmp/manejador-db-intellisense-integration-dark.png`.
+- Popup IntelliSense claro: `/tmp/manejador-db-intellisense-integration-light.png`.
+
+### Resultado de integración
+
+- La barra superior mantiene sus tres grupos, el indicador `Desarrollo` no parece una acción y
+  ningún control se recorta en los dos tamaños admitidos.
+- Editor, explorador y resultados mantienen jerarquía, contraste y proporciones en ambos temas.
+- Un snapshot PostgreSQL determinista con `admin_service.activity_log` produjo ocho columnas
+  contextuales para `SELECT a.` sin realizar I/O durante la pulsación.
+- El popup conserva iconos, tipo nativo, objeto calificado, selección, scroll y contraste en
+  temas Claro y Oscuro.
+- No se observaron limitaciones visuales nuevas durante la consolidación.
