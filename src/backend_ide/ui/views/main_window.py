@@ -1,15 +1,16 @@
 """Main Application Window for PySide6 Desktop Shell."""
 
-import re
+from __future__ import annotations
 
 import qtawesome as qta
 from PySide6.QtCore import Qt, QThreadPool, QTimer
-from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSplitter,
     QStatusBar,
@@ -20,10 +21,9 @@ from PySide6.QtWidgets import (
 
 from backend_ide import __version__
 from backend_ide.application.connection_service import ConnectionService
-from backend_ide.application.metadata_cache import ConnectionMetadataCache
 from backend_ide.application.query_service import ExecuteQueryService
 from backend_ide.domain.connection import ConnectionProfile
-from backend_ide.domain.schema import Column, DatabaseSchema
+from backend_ide.domain.schema.models import DatabaseSchema
 from backend_ide.domain.sql import QueryRequest, QueryResult
 from backend_ide.infrastructure.database.contracts import DatabaseConnection
 from backend_ide.infrastructure.database.schema_inspection_worker import (
@@ -33,8 +33,7 @@ from backend_ide.infrastructure.database.schema_inspection_worker import (
 from backend_ide.infrastructure.database.table_columns_worker import TableColumnsWorker
 from backend_ide.infrastructure.logging import get_logger
 from backend_ide.ui.components import BreadcrumbWidget, ConnectionSelector, ThemeToggleButton
-from backend_ide.ui.components.environment_indicator import environment_label
-from backend_ide.ui.dialogs import ConnectionDialog
+from backend_ide.ui.dialogs import CodeGenerationDialog, ConnectionDialog, DBFMigrationDialog
 from backend_ide.ui.editor import SqlEditorWidget
 from backend_ide.ui.explorer import DatabaseExplorerWidget
 from backend_ide.ui.results import ResultsWidget
@@ -56,8 +55,8 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Backend Development IDE v{__version__}")
-        self.resize(1340, 840)
         self.setMinimumSize(1100, 700)
+        self.resize(1340, 840)
 
         self._thread_pool = thread_pool or QThreadPool.globalInstance()
         self.connection_service = connection_service or ConnectionService()
@@ -65,22 +64,17 @@ class MainWindow(QMainWindow):
         self._active_profile: ConnectionProfile | None = None
         self._active_database: str | None = None
         self._active_connection: DatabaseConnection | None = None
+        self._active_schema: DatabaseSchema | None = None
         self._candidate_profile: ConnectionProfile | None = None
         self._candidate_database: str | None = None
         self._candidate_connection: DatabaseConnection | None = None
         self._database_names: tuple[str, ...] = ()
-        self._metadata_cache = ConnectionMetadataCache()
-        self._active_metadata_key: str | None = None
-        self._active_schema: DatabaseSchema | None = None
         self._inspection_worker: SchemaInspectionWorker | None = None
         self._column_workers: dict[tuple[str, str], TableColumnsWorker] = {}
         self._query_worker = None
-        self._executed_sql = ""
         self._is_inspecting = False
         self._theme_manager = ThemeManager.get_instance()
         self._setup_ui()
-        self._theme_manager.theme_changed.connect(self._refresh_action_icons)
-        self._refresh_action_icons()
         self._theme_manager.apply_theme()
         if auto_load_profile:
             QTimer.singleShot(0, self._load_initial_profile)
@@ -89,26 +83,32 @@ class MainWindow(QMainWindow):
         """Construct application layout and widgets."""
         main_container = QWidget()
         main_layout = QVBoxLayout(main_container)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(6, 6, 6, 6)
+        main_layout.setSpacing(4)
 
-        # 1. Segmented Top Bar Toolbar
+        # 1. Top Bar with 3 Columns (Connection, Execution/Query Centered, Theme Right)
         self.top_bar = QWidget()
         self.top_bar.setObjectName("top_bar")
-        self.top_bar.setFixedHeight(52)
+        self.top_bar.setFixedHeight(48)
         top_layout = QGridLayout(self.top_bar)
-        top_layout.setContentsMargins(12, 8, 12, 8)
-        top_layout.setHorizontalSpacing(12)
+        top_layout.setContentsMargins(8, 4, 8, 4)
+        top_layout.setSpacing(8)
         top_layout.setColumnStretch(0, 1)
-        top_layout.setColumnStretch(1, 0)
+        top_layout.setColumnStretch(1, 2)
         top_layout.setColumnStretch(2, 1)
 
-        # Left Connection Group
+        # Left Connection Group (Col 0)
         self.conn_selector = ConnectionSelector(self.connection_service)
         self.conn_selector.new_connection_requested.connect(self.open_new_connection_dialog)
         self.conn_selector.edit_connection_requested.connect(self.open_edit_connection_dialog)
+        top_layout.addWidget(
+            self.conn_selector,
+            0,
+            0,
+            alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+        )
 
-        # Center Execution Group
+        # Center Execution Group (Col 1)
         self.query_toolbar = QWidget()
         self.query_toolbar.setObjectName("toolbar_group")
         self.query_toolbar.setFixedHeight(36)
@@ -120,32 +120,57 @@ class MainWindow(QMainWindow):
         self.btn_execute = QPushButton("Ejecutar")
         self.btn_execute.setObjectName("btn_execute")
         self.btn_execute.setFixedHeight(32)
-        self.btn_execute.setToolTip("Ejecutar selección o consulta activa (Ctrl+Enter)")
+        self.btn_execute.setIcon(qta.icon("fa6s.play", color="#11111b"))
+        self.btn_execute.setToolTip("Ejecutar consulta activa (Ctrl+Enter)")
 
-        self.btn_new_query = QPushButton("Nueva consulta")
-        self.btn_er_diagram = QPushButton("Diagrama ER")
+        self.btn_new_query = QPushButton("Nueva Consulta")
         self.btn_new_query.setFixedHeight(32)
+        self.btn_new_query.setIcon(qta.icon("fa6s.file-circle-plus"))
+
+        self.btn_generate_code = QPushButton("Generar Código")
+        self.btn_generate_code.setFixedHeight(32)
+        self.btn_generate_code.setIcon(qta.icon("fa6s.laptop-code"))
+        self.btn_generate_code.setToolTip("Generar modelos ORM y repositorios SQL")
+        self.btn_generate_code.clicked.connect(lambda: self.open_code_generation_dialog())
+
+        self.btn_dbf_migrator = QPushButton("Importar DBF")
+        self.btn_dbf_migrator.setFixedHeight(32)
+        self.btn_dbf_migrator.setIcon(qta.icon("fa6s.box-archive", color="#f9e2af"))
+        self.btn_dbf_migrator.setToolTip("Inspeccionar y migrar tablas legacy DBF (dBase / FoxPro)")
+        self.btn_dbf_migrator.clicked.connect(self.open_dbf_migration_dialog)
+
+        self.btn_er_diagram = QPushButton("Diagrama ER")
         self.btn_er_diagram.setFixedHeight(32)
-        self.btn_er_diagram.setEnabled(False)
-        self.btn_er_diagram.setToolTip("Disponible en una fase posterior")
+        self.btn_er_diagram.setIcon(qta.icon("fa6s.diagram-project"))
+        self.btn_er_diagram.setToolTip("Visualizar Diagrama Entidad-Relación interactivo")
+        self.btn_er_diagram.clicked.connect(self.open_er_diagram_tab)
+
+        self.btn_schema_diff = QPushButton("Diff / Migraciones")
+        self.btn_schema_diff.setFixedHeight(32)
+        self.btn_schema_diff.setIcon(qta.icon("fa6s.code-compare"))
+        self.btn_schema_diff.setToolTip("Comparar esquemas y generar scripts DDL de migración")
+        self.btn_schema_diff.clicked.connect(self.open_schema_diff_dialog)
 
         self.btn_execute.clicked.connect(self.execute_current_query)
         self.btn_new_query.clicked.connect(self.add_new_query_tab)
-        self.execute_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
-        self.execute_shortcut.activated.connect(self.execute_current_query)
-        self.execute_keypad_shortcut = QShortcut(QKeySequence("Ctrl+Enter"), self)
-        self.execute_keypad_shortcut.activated.connect(self.execute_current_query)
 
         center_layout.addWidget(self.btn_execute)
         center_layout.addWidget(self.btn_new_query)
+        center_layout.addWidget(self.btn_generate_code)
+        center_layout.addWidget(self.btn_dbf_migrator)
         center_layout.addWidget(self.btn_er_diagram)
+        center_layout.addWidget(self.btn_schema_diff)
 
-        # Right Theme & Settings Group
+        top_layout.addWidget(self.query_toolbar, 0, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # Right Theme & Settings Group (Col 2)
         self.theme_toggle = ThemeToggleButton()
-
-        top_layout.addWidget(self.conn_selector, 0, 0, Qt.AlignmentFlag.AlignLeft)
-        top_layout.addWidget(self.query_toolbar, 0, 1, Qt.AlignmentFlag.AlignCenter)
-        top_layout.addWidget(self.theme_toggle, 0, 2, Qt.AlignmentFlag.AlignRight)
+        top_layout.addWidget(
+            self.theme_toggle,
+            0,
+            2,
+            alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+        )
 
         main_layout.addWidget(self.top_bar)
 
@@ -163,15 +188,17 @@ class MainWindow(QMainWindow):
         self.explorer_widget.refresh_requested.connect(self._refresh_active_database)
         self.explorer_widget.add_connection_requested.connect(self.open_new_connection_dialog)
         self.explorer_widget.table_expansion_requested.connect(self._on_table_expansion_requested)
+        self.explorer_widget.code_generation_requested.connect(self.open_code_generation_dialog)
+        self.explorer_widget.data_view_requested.connect(self.open_data_grid_tab)
         self.explorer_widget.setMinimumWidth(280)
 
         # Right Area (Workspace Tabs + Results Splitter)
         self.workspace_splitter = QSplitter(Qt.Orientation.Vertical)
 
         self.tabs_workspace = QTabWidget()
-        self.tabs_workspace.setMinimumHeight(240)
         self.tabs_workspace.setTabsClosable(True)
         self.tabs_workspace.tabCloseRequested.connect(self._on_tab_close_requested)
+        self.tabs_workspace.setMinimumHeight(240)
 
         # Initial SQL tab with QScintilla / SqlEditorWidget
         self.add_new_query_tab(
@@ -184,17 +211,17 @@ class MainWindow(QMainWindow):
 
         self.workspace_splitter.addWidget(self.tabs_workspace)
         self.workspace_splitter.addWidget(self.results_widget)
-        self.workspace_splitter.setChildrenCollapsible(False)
+        self.workspace_splitter.setSizes([455, 245])
         self.workspace_splitter.setStretchFactor(0, 13)
         self.workspace_splitter.setStretchFactor(1, 7)
-        self.workspace_splitter.setSizes([455, 245])
+        self.workspace_splitter.setChildrenCollapsible(False)
 
         self.main_splitter.addWidget(self.explorer_widget)
         self.main_splitter.addWidget(self.workspace_splitter)
-        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.setSizes([340, 1000])
         self.main_splitter.setStretchFactor(0, 0)
         self.main_splitter.setStretchFactor(1, 1)
-        self.main_splitter.setSizes([340, 1000])
+        self.main_splitter.setChildrenCollapsible(False)
 
         main_layout.addWidget(self.main_splitter)
         self.setCentralWidget(main_container)
@@ -203,21 +230,10 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_lbl_conn = QLabel(" Sin conexión ")
-        self.status_lbl_python = QLabel(" Python 3.14.4 ")
         self.status_bar.addWidget(self.status_lbl_conn)
-        self.status_bar.addPermanentWidget(self.status_lbl_python)
 
         self.breadcrumb_bar.set_path("Sin conexión", "—", "—")
         self.conn_selector.connection_changed.connect(self._on_profile_changed)
-
-    def _refresh_action_icons(self, _mode_str: str | None = None) -> None:
-        """Repaint top-level workflow actions after a theme change."""
-        color = self._theme_manager.current_palette.text_secondary
-        self.btn_execute.setIcon(
-            qta.icon("fa6s.play", color=self._theme_manager.current_palette.text_on_accent)
-        )
-        self.btn_new_query.setIcon(qta.icon("fa6s.file-circle-plus", color=color))
-        self.btn_er_diagram.setIcon(qta.icon("fa6s.diagram-project", color=color))
 
     def _load_initial_profile(self) -> None:
         """Inspect the first saved profile when the desktop starts."""
@@ -282,24 +298,29 @@ class MainWindow(QMainWindow):
         self._active_profile = profile
         self._active_database = result.schema.database_name
         self._active_connection = candidate
+        self._active_schema = result.schema
         names = result.database_names
         if result.schema.database_name not in names:
             names = tuple(sorted((*names, result.schema.database_name)))
         self._database_names = names
 
         self.explorer_widget.set_databases(names, result.schema.database_name)
-        metadata_key = f"{profile.id}/{result.schema.database_name}"
-        snapshot = self._metadata_cache.put(metadata_key, result.schema)
-        self._active_metadata_key = metadata_key
-        self.explorer_widget.load_schema_model(profile.name, snapshot)
-        self._active_schema = snapshot
-        self._apply_completion_schema_to_editors()
-        first_schema = snapshot.schemas[0].name if snapshot.schemas else "—"
-        self.breadcrumb_bar.set_path(profile.name, snapshot.database_name, first_schema)
-        environment = environment_label(profile.environment)
+        self.explorer_widget.load_schema_model(profile.name, result.schema)
+        first_schema = result.schema.schemas[0].name if result.schema.schemas else "—"
+        self.breadcrumb_bar.set_path(profile.name, result.schema.database_name, first_schema)
+        environment = profile.environment.value.capitalize()
         self.status_lbl_conn.setText(
             f" Conectado: {profile.name} / {result.schema.database_name} ({environment}) "
         )
+
+        # Propagate live schema model to all open SQL editor tabs and ER diagrams
+        for i in range(self.tabs_workspace.count()):
+            widget = self.tabs_workspace.widget(i)
+            if isinstance(widget, SqlEditorWidget):
+                widget.set_completion_schema(result.schema)
+            elif widget.__class__.__name__ == "ERDiagramWidget":
+                widget.load_schema(result.schema)
+                self.tabs_workspace.setTabText(i, f"Diagrama ER ({result.schema.database_name})")
 
         self._candidate_connection = None
         if previous_connection is not None and previous_connection is not candidate:
@@ -369,45 +390,11 @@ class MainWindow(QMainWindow):
             database_name=self._active_database,
         )
         worker = TableColumnsWorker(connection, schema_name, table_name)
-        schema_snapshot = self._active_schema
-        worker.signals.succeeded.connect(
-            lambda loaded_schema, loaded_table, columns: self._on_table_columns_loaded(
-                schema_snapshot,
-                loaded_schema,
-                loaded_table,
-                columns,
-            )
-        )
+        worker.signals.succeeded.connect(self.explorer_widget.load_table_columns)
         worker.signals.failed.connect(self.explorer_widget.show_table_columns_error)
         worker.signals.finished.connect(self._on_table_columns_finished)
         self._column_workers[key] = worker
         self._thread_pool.start(worker)
-
-    def _on_table_columns_loaded(
-        self,
-        schema_snapshot: DatabaseSchema | None,
-        schema_name: str,
-        table_name: str,
-        columns: list[Column],
-    ) -> None:
-        """Update the explorer and cached completion metadata atomically."""
-        if (
-            schema_snapshot is None
-            or schema_snapshot is not self._active_schema
-            or self._active_metadata_key is None
-        ):
-            return
-        self.explorer_widget.load_table_columns(schema_name, table_name, columns)
-        try:
-            self._active_schema = self._metadata_cache.update_columns(
-                self._active_metadata_key,
-                schema_name,
-                table_name,
-                columns,
-            )
-        except KeyError:
-            return
-        self._apply_completion_schema_to_editors()
 
     def _on_table_columns_finished(self, schema_name: str, table_name: str) -> None:
         """Release the retained Qt worker after its signals have been delivered."""
@@ -440,13 +427,144 @@ class MainWindow(QMainWindow):
             self.conn_selector.blockSignals(False)
             self._load_profile(dialog.profile)
 
+    def open_code_generation_dialog(self, table_name: str | None = None) -> None:
+        """Open Code Generation dialog for active database schema."""
+        if not self._active_schema:
+            QMessageBox.information(
+                self,
+                "Sin Esquema",
+                "Conéctate a una base de datos primero para generar código a partir de su esquema.",
+            )
+            return
+
+        dialog = CodeGenerationDialog(
+            schema=self._active_schema,
+            selected_table_name=table_name,
+            parent=self,
+        )
+        dialog.exec()
+
+    def open_dbf_migration_dialog(self) -> None:
+        """Open Legacy DBF Inspection and Migration dialog."""
+        dialog = DBFMigrationDialog(parent=self)
+        dialog.exec()
+
+    def open_er_diagram_tab(self) -> None:
+        """Open or switch to visual ER Diagram workspace tab."""
+        if not self._active_schema:
+            QMessageBox.information(
+                self,
+                "Sin Esquema",
+                "Conéctate a una base de datos primero para generar su diagrama Entidad-Relación.",
+            )
+            return
+
+        from backend_ide.ui.diagram.diagram_widget import ERDiagramWidget
+
+        # Look for existing diagram tab
+        for i in range(self.tabs_workspace.count()):
+            widget = self.tabs_workspace.widget(i)
+            if isinstance(widget, ERDiagramWidget):
+                widget.load_schema(self._active_schema)
+                self.tabs_workspace.setCurrentIndex(i)
+                return
+
+        # Create new ER diagram tab
+        diagram_tab = ERDiagramWidget(self._active_schema)
+        diagram_tab.view_data_requested.connect(self._on_diagram_view_data)
+        diagram_tab.generate_joins_requested.connect(self._on_diagram_generate_joins)
+        diagram_tab.generate_code_requested.connect(self._on_diagram_generate_code)
+
+        self.tabs_workspace.addTab(
+            diagram_tab,
+            qta.icon("fa6s.diagram-project", color="#89b4fa"),
+            f"Diagrama ER ({self._active_schema.database_name})",
+        )
+        self.tabs_workspace.setCurrentWidget(diagram_tab)
+
+    def _on_diagram_view_data(self, table_name: str) -> None:
+        """Open query tab and immediately execute preview for table."""
+        sql = f"SELECT *\nFROM {table_name}\nLIMIT 100;"
+        self.add_new_query_tab(initial_sql=sql)
+        self.execute_current_query()
+
+    def _on_diagram_generate_joins(self, table_name: str) -> None:
+        """Open query tab with auto-generated SELECT query and foreign key JOINs."""
+        if not self._active_schema:
+            return
+        from backend_ide.domain.sql.join_engine import SqlJoinEngine
+
+        sql = SqlJoinEngine.generate_select_with_joins(self._active_schema, table_name)
+        self.add_new_query_tab(initial_sql=sql)
+
+    def _on_diagram_generate_code(self, table_name: str) -> None:
+        """Open backend code generation dialog pre-selected to this table."""
+        self.open_code_generation_dialog(table_name=table_name)
+
+    def open_data_grid_tab(self, schema_name: str, table_name: str) -> None:
+        """Open a live interactive data viewer and editor tab for table."""
+        if not self._active_schema:
+            QMessageBox.information(
+                self,
+                "Sin Conexión",
+                "Conéctate a una base de datos primero para ver los datos de la tabla.",
+            )
+            return
+
+        table_obj = self._active_schema.find_table(table_name, schema_name)
+        if not table_obj:
+            # Create a simple table reference if full schema is missing
+            from backend_ide.domain.schema.models import Table
+
+            table_obj = Table(name=table_name, schema_name=schema_name)
+
+        from backend_ide.ui.views.data_grid_view import DataGridWidget
+
+        tab_title = f"📊 {table_name}"
+
+        # Look for existing data grid tab for this table
+        for i in range(self.tabs_workspace.count()):
+            widget = self.tabs_workspace.widget(i)
+            if isinstance(widget, DataGridWidget) and widget.table.name == table_name:
+                widget.load_data()
+                self.tabs_workspace.setCurrentIndex(i)
+                return
+
+        grid_widget = DataGridWidget(table=table_obj, connection=self._active_connection)
+        self.tabs_workspace.addTab(
+            grid_widget,
+            qta.icon("fa6s.table-cells", color="#89b4fa"),
+            tab_title,
+        )
+        self.tabs_workspace.setCurrentWidget(grid_widget)
+
+    def open_schema_diff_dialog(self) -> None:
+        """Open interactive schema comparison and DDL migration generator dialog."""
+        if not self._active_schema:
+            QMessageBox.information(
+                self,
+                "Sin Esquema Cargado",
+                "Conéctate a una base de datos primero para utilizar el comparador de esquemas.",
+            )
+            return
+
+        from backend_ide.ui.dialogs.schema_diff_dialog import SchemaDiffDialog
+
+        dialog = SchemaDiffDialog(
+            source_schema=self._active_schema,
+            target_schema=self._active_schema,
+            parent=self,
+        )
+        dialog.open_in_editor_requested.connect(lambda sql: self.add_new_query_tab(initial_sql=sql))
+        dialog.exec()
+
     def add_new_query_tab(self, initial_sql: str = "") -> SqlEditorWidget:
         """Add a new QScintilla SQL query editor tab to workspace."""
         tab_index = self.tabs_workspace.count() + 1
         base_title = f"Consulta-{tab_index}.sql"
 
         editor = SqlEditorWidget(initial_text=initial_sql)
-        if self._active_schema is not None:
+        if self._active_schema:
             editor.set_completion_schema(self._active_schema)
 
         def on_modified(modified: bool) -> None:
@@ -460,15 +578,6 @@ class MainWindow(QMainWindow):
         self.tabs_workspace.addTab(editor, base_title)
         self.tabs_workspace.setCurrentWidget(editor)
         return editor
-
-    def _apply_completion_schema_to_editors(self) -> None:
-        """Attach the active cached schema to every open SQL editor."""
-        if self._active_schema is None:
-            return
-        for index in range(self.tabs_workspace.count()):
-            editor = self.tabs_workspace.widget(index)
-            if isinstance(editor, SqlEditorWidget):
-                editor.set_completion_schema(self._active_schema)
 
     def execute_current_query(self) -> None:
         """Execute SQL query from active workspace tab."""
@@ -486,8 +595,7 @@ class MainWindow(QMainWindow):
             return
 
         self.btn_execute.setEnabled(False)
-        self.results_widget.lbl_stats.setText("Ejecutando consulta…")
-        self._executed_sql = sql_text
+        self.results_widget.lbl_stats.setText("⏳ Ejecutando consulta…")
         self._query_worker = self.query_service.execute_async(
             self._active_connection,
             QueryRequest(sql=sql_text),
@@ -499,19 +607,6 @@ class MainWindow(QMainWindow):
         self.results_widget.display_result(result)
         self.btn_execute.setEnabled(True)
         self._query_worker = None
-        if not result.has_error and self._contains_schema_ddl(self._executed_sql):
-            self._refresh_active_database()
-
-    @staticmethod
-    def _contains_schema_ddl(sql: str) -> bool:
-        """Detect successful schema-changing statements conservatively."""
-        return bool(
-            re.search(
-                r"(?:^|;)\s*(?:CREATE|ALTER|DROP)\s+(?:TABLE|VIEW)\b",
-                sql,
-                re.IGNORECASE,
-            )
-        )
 
     def _on_query_requested(self, sql_query: str) -> None:
         """Handle generated SQL query emitted by Explorer."""

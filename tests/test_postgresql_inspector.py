@@ -93,6 +93,24 @@ def test_postgresql_inspector_builds_explorer_summary_in_two_queries():
     def execute(query, _params=None):
         if "current_database()" in query:
             return [{"db_name": "db_outlet"}]
+        if "information_schema.columns" in query:
+            return [
+                {
+                    "table_schema": "public",
+                    "table_name": "customers",
+                    "column_name": "id",
+                    "data_type": "integer",
+                    "udt_name": "int4",
+                    "is_nullable": "NO",
+                    "column_default": None,
+                    "character_maximum_length": None,
+                    "numeric_precision": 32,
+                    "numeric_scale": 0,
+                    "is_identity": "NO",
+                }
+            ]
+        if "information_schema.table_constraints" in query:
+            return []
         return [
             {"table_schema": "public", "table_name": "customers"},
             {"table_schema": "public", "table_name": "orders"},
@@ -106,7 +124,8 @@ def test_postgresql_inspector_builds_explorer_summary_in_two_queries():
     assert schema.database_name == "db_outlet"
     assert [item.name for item in schema.schemas] == ["public", "supplier_service"]
     assert [table.name for table in schema.schemas[0].tables] == ["customers", "orders"]
-    assert connection.execute_query.call_count == 2
+    assert len(schema.schemas[0].tables[0].columns) == 1
+    assert connection.execute_query.call_count == 4
 
 
 def test_postgresql_inspector_builds_completion_metadata_with_bulk_queries():

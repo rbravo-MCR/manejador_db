@@ -87,7 +87,7 @@ class PostgreSQLInspector:
         ]
 
     def inspect_database_summary(self) -> DatabaseSchema:
-        """Build the lightweight schema/table model required by Database Explorer."""
+        """Build the schema, table, column, and foreign key model for Explorer and IntelliSense."""
         rows = self.connection.execute_query(
             """
             SELECT table_schema, table_name
@@ -98,11 +98,112 @@ class PostgreSQLInspector:
             ORDER BY table_schema, table_name;
             """
         )
+        if not rows:
+            return DatabaseSchema(
+                engine_name="postgresql",
+                database_name=self._get_current_database_name(),
+                schemas=[],
+            )
+
+        col_rows = self.connection.execute_query(
+            """
+            SELECT
+                table_schema,
+                table_name,
+                column_name,
+                data_type,
+                udt_name,
+                is_nullable,
+                column_default,
+                character_maximum_length,
+                numeric_precision,
+                numeric_scale,
+                is_identity
+            FROM information_schema.columns
+            WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+              AND table_schema NOT LIKE 'pg_toast%'
+            ORDER BY table_schema, table_name, ordinal_position;
+            """
+        )
+
+        cols_by_table: dict[tuple[str, str], list[Column]] = {}
+        for r in col_rows:
+            key = (r["table_schema"], r["table_name"])
+            raw_type = r["data_type"]
+            if raw_type == "USER-DEFINED":
+                raw_type = r["udt_name"]
+            col_default = r["column_default"]
+            is_auto = r.get("is_identity") == "YES" or (
+                col_default is not None and "nextval" in str(col_default).lower()
+            )
+            norm_type = map_pg_type_to_normalized(raw_type)
+            cols_by_table.setdefault(key, []).append(
+                Column(
+                    name=r["column_name"],
+                    native_type=raw_type.upper(),
+                    normalized_type=norm_type,
+                    is_nullable=r["is_nullable"] == "YES",
+                    is_auto_increment=is_auto,
+                    default_value=str(col_default) if col_default is not None else None,
+                    precision=r.get("numeric_precision"),
+                    scale=r.get("numeric_scale"),
+                    length=r.get("character_maximum_length"),
+                )
+            )
+
+        fk_rows = self.connection.execute_query(
+            """
+            SELECT
+                tc.constraint_name,
+                tc.table_schema AS source_schema,
+                tc.table_name AS source_table,
+                kcu.column_name AS source_column,
+                ccu.table_schema AS target_schema,
+                ccu.table_name AS target_table,
+                ccu.column_name AS target_column
+            FROM information_schema.table_constraints AS tc
+            JOIN information_schema.key_column_usage AS kcu
+              ON tc.constraint_name = kcu.constraint_name
+             AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage AS ccu
+              ON ccu.constraint_name = tc.constraint_name
+             AND ccu.table_schema = tc.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+              AND tc.table_schema NOT IN ('information_schema', 'pg_catalog')
+              AND tc.table_schema NOT LIKE 'pg_toast%';
+            """
+        )
+        fks_by_table: dict[tuple[str, str], list[ForeignKey]] = {}
+        for r in fk_rows:
+            key = (r["source_schema"], r["source_table"])
+            fks_by_table.setdefault(key, []).append(
+                ForeignKey(
+                    name=r["constraint_name"],
+                    source_schema=r["source_schema"],
+                    source_table=r["source_table"],
+                    target_schema=r["target_schema"],
+                    target_table=r["target_table"],
+                    column_mappings=[
+                        ForeignKeyColumnMapping(
+                            source_column=r["source_column"],
+                            target_column=r["target_column"],
+                        )
+                    ],
+                )
+            )
+
         tables_by_schema: dict[str, list[Table]] = {}
         for row in rows:
             schema_name = row["table_schema"]
+            tbl_name = row["table_name"]
+            key = (schema_name, tbl_name)
             tables_by_schema.setdefault(schema_name, []).append(
-                Table(name=row["table_name"], schema_name=schema_name)
+                Table(
+                    name=tbl_name,
+                    schema_name=schema_name,
+                    columns=cols_by_table.get(key, []),
+                    foreign_keys=fks_by_table.get(key, []),
+                )
             )
 
         return DatabaseSchema(

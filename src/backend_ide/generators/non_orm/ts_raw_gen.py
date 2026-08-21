@@ -1,0 +1,145 @@
+"""TypeScript Direct SQL / Node pg Typed Repository Generator."""
+
+from __future__ import annotations
+
+from backend_ide.domain.schema.models import DatabaseSchema, Table
+from backend_ide.generators.contracts import (
+    CodeGenerator,
+    GeneratedFile,
+    GeneratedProject,
+    GenerationRequest,
+    GenerationTarget,
+    GeneratorCategory,
+    Language,
+    filter_tables,
+)
+from backend_ide.generators.naming import (
+    sanitize_identifier,
+    table_to_class_name,
+)
+from backend_ide.generators.type_mappers.typescript_types import TypeScriptTypeMapper
+
+
+class TSRawGenerator(CodeGenerator):
+    """Generates TypeScript interfaces and type-safe parameterized repositories for pg."""
+
+    target = GenerationTarget.TS_RAW
+    name = "TypeScript Native SQL (pg/mysql2)"
+    language = Language.TYPESCRIPT
+    category = GeneratorCategory.NON_ORM
+    description = (
+        "Type-safe TypeScript database interfaces and parameterized async SQL repositories"
+    )
+
+    def generate_table(
+        self,
+        table: Table,
+        schema: DatabaseSchema | None = None,
+        request: GenerationRequest | None = None,
+    ) -> str:
+        """Generate TypeScript interface and repository for a single table."""
+        entity_name = table_to_class_name(table.name)
+        repo_name = f"{entity_name}Repository"
+        pk_col = next((c for c in table.columns if c.is_primary_key), None)
+        pk_name = pk_col.name if pk_col else "id"
+        pk_ts_type = TypeScriptTypeMapper.to_ts_type(pk_col) if pk_col else "number"
+
+        col_names = [c.name for c in table.columns]
+        col_list_str = ", ".join(col_names)
+        insert_cols = [c.name for c in table.columns if not c.is_auto_increment]
+        insert_cols_str = ", ".join(insert_cols)
+        dollar_params = ", ".join(f"${i + 1}" for i in range(len(insert_cols)))
+        insert_val_keys = ", ".join(
+            f"entity.{sanitize_identifier(c, Language.TYPESCRIPT)}" for c in insert_cols
+        )
+
+        lines: list[str] = [
+            f"export interface {entity_name} {{",
+        ]
+
+        for col in table.columns:
+            ts_type = TypeScriptTypeMapper.to_ts_type(col)
+            field_name = sanitize_identifier(col.name, Language.TYPESCRIPT)
+            lines.append(f"  {field_name}: {ts_type};")
+
+        lines.extend(
+            [
+                "}",
+                "",
+                f"export type New{entity_name} = Omit<{entity_name}, '{pk_name}'>;",
+                "",
+                "export interface DbPool {",
+                "  query: (",
+                "    text: string,",
+                "    params?: any[]",
+                "  ) => Promise<{ rows: any[]; rowCount: number }>;",
+                "}",
+                "",
+                f"export class {repo_name} {{",
+                "  constructor(private readonly pool: DbPool) {}",
+                "",
+                f"  async getById({pk_name}: {pk_ts_type}): Promise<{entity_name} | null> {{",
+                f'    const sql = "SELECT {col_list_str} FROM {table.qualified_name} '
+                f'WHERE {pk_name} = $1 LIMIT 1;";',
+                f"    const result = await this.pool.query(sql, [{pk_name}]);",
+                "    return result.rows[0] || null;",
+                "  }",
+                "",
+                f"  async listAll(limit = 100, offset = 0): Promise<{entity_name}[]> {{",
+                f'    const sql = "SELECT {col_list_str} FROM {table.qualified_name} '
+                'LIMIT $1 OFFSET $2;";',
+                "    const result = await this.pool.query(sql, [limit, offset]);",
+                "    return result.rows;",
+                "  }",
+                "",
+                f"  async insert(entity: New{entity_name}): Promise<{pk_ts_type}> {{",
+                f'    const sql = "INSERT INTO {table.qualified_name} ({insert_cols_str}) '
+                f'VALUES ({dollar_params}) RETURNING {pk_name};";',
+                f"    const result = await this.pool.query(sql, [{insert_val_keys}]);",
+                f"    return result.rows[0].{pk_name};",
+                "  }",
+                "",
+                f"  async deleteById({pk_name}: {pk_ts_type}): Promise<boolean> {{",
+                f'    const sql = "DELETE FROM {table.qualified_name} WHERE {pk_name} = $1;";',
+                f"    const result = await this.pool.query(sql, [{pk_name}]);",
+                "    return result.rowCount > 0;",
+                "  }",
+                "}",
+            ]
+        )
+
+        return "\n".join(lines)
+
+    def generate(
+        self,
+        schema: DatabaseSchema,
+        request: GenerationRequest,
+    ) -> GeneratedProject:
+        """Generate full TypeScript direct SQL repositories module."""
+        tables_to_generate = filter_tables(schema, request)
+
+        header_lines = [
+            "/**",
+            " * TypeScript Type-Safe Direct SQL Repositories",
+            " * Generated by Backend Development IDE",
+            " */",
+            "",
+        ]
+
+        blocks: list[str] = []
+        for table in tables_to_generate:
+            blocks.append(self.generate_table(table, schema, request))
+
+        content = "\n".join(header_lines) + "\n\n" + "\n\n\n".join(blocks) + "\n"
+
+        file = GeneratedFile(
+            path="repositories.ts",
+            content=content,
+            language=Language.TYPESCRIPT,
+        )
+
+        return GeneratedProject(
+            target=self.target,
+            files=[file],
+            metadata={"table_count": len(tables_to_generate)},
+        )

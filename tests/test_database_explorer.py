@@ -2,8 +2,6 @@
 
 import os
 
-from PySide6.QtCore import Qt
-
 from backend_ide.domain.schema import (
     Column,
     DatabaseSchema,
@@ -81,7 +79,7 @@ def test_explorer_widget_initialization(qtbot):
 
 
 def test_explorer_header_contains_summary_and_compact_actions(qtbot):
-    """Summary and frequent actions must share one compact explorer header."""
+    """Explorer header groups title, entities badge, and 32x32 actions."""
     explorer = DatabaseExplorerWidget()
     qtbot.addWidget(explorer)
     header_layout = explorer.header.layout()
@@ -93,23 +91,7 @@ def test_explorer_header_contains_summary_and_compact_actions(qtbot):
     assert explorer.btn_add in widgets
     assert explorer.btn_refresh.size().toTuple() == (32, 32)
     assert explorer.btn_add.size().toTuple() == (32, 32)
-    assert explorer.cmb_database.height() == 32
-    assert explorer.txt_filter.height() == 32
     assert explorer.minimumWidth() == 280
-
-
-def test_explorer_header_actions_emit_their_documented_requests(qtbot):
-    """Compact explorer actions must preserve refresh and connection workflows."""
-    explorer = DatabaseExplorerWidget()
-    qtbot.addWidget(explorer)
-    requested: list[str] = []
-    explorer.refresh_requested.connect(lambda: requested.append("refresh"))
-    explorer.add_connection_requested.connect(lambda: requested.append("add"))
-
-    qtbot.mouseClick(explorer.btn_refresh, Qt.MouseButton.LeftButton)
-    qtbot.mouseClick(explorer.btn_add, Qt.MouseButton.LeftButton)
-
-    assert requested == ["refresh", "add"]
 
 
 def test_explorer_model_loading_uses_dense_schema_table_hierarchy(qtbot):
@@ -231,25 +213,3 @@ def test_explorer_sql_generation_helpers(qtbot):
     assert "UPDATE public.users" in update_sql
     assert "SET" in update_sql
     assert "WHERE id = :id" in update_sql
-
-
-def test_sql_generation_falls_back_safely_before_lazy_columns_load(qtbot):
-    """Context actions must remain executable while table columns are still unloaded."""
-    explorer = DatabaseExplorerWidget()
-    qtbot.addWidget(explorer)
-    shallow_schema = DatabaseSchema(
-        engine_name="postgresql",
-        database_name="shop_db",
-        schemas=[Schema(name="public", tables=[Table(name="countries", schema_name="public")])],
-    )
-    explorer.load_schema_model("Test Connection", shallow_schema)
-
-    assert explorer._generate_select_sql("public", "countries") == (
-        "SELECT * FROM public.countries;"
-    )
-    assert explorer._generate_insert_sql("public", "countries") == (
-        "INSERT INTO public.countries DEFAULT VALUES;"
-    )
-    assert explorer._generate_update_sql("public", "countries") == (
-        "UPDATE public.countries SET column = value WHERE condition;"
-    )

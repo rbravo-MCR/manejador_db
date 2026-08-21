@@ -57,6 +57,21 @@ class ConnectionService:
             options=profile.options,
         )
 
+        if profile.engine == "sqlite":
+            from backend_ide.infrastructure.database.sqlite import SQLiteConnection
+
+            return SQLiteConnection(config)
+
+        if profile.engine == "mysql":
+            from backend_ide.infrastructure.database.mysql import MySQLConnection
+
+            return MySQLConnection(config)
+
+        if profile.engine in ("sqlserver", "mssql"):
+            from backend_ide.infrastructure.database.mssql.connection import MSSQLConnection
+
+            return MSSQLConnection(config)
+
         if profile.engine == "postgresql":
             return PostgreSQLConnection(config)
         if profile.engine == "sqlite":

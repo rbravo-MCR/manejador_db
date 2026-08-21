@@ -6,8 +6,7 @@ from PySide6.QtCore import QObject, QRunnable, Signal
 
 from backend_ide.domain.schema import DatabaseSchema
 from backend_ide.infrastructure.database.contracts import DatabaseConnection
-from backend_ide.infrastructure.database.postgresql import PostgreSQLInspector
-from backend_ide.infrastructure.database.sqlite import SQLiteMetadataProvider
+from backend_ide.infrastructure.database.inspector_factory import InspectorFactory
 from backend_ide.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -45,18 +44,11 @@ class SchemaInspectionWorker(QRunnable):
     def run(self) -> None:
         """Inspect the candidate connection and emit an atomic result."""
         try:
-            engine = getattr(getattr(self.connection, "config", None), "engine", "postgresql")
-            if engine == "sqlite":
-                schema = SQLiteMetadataProvider(self.connection).inspect_database()
-                self.signals.succeeded.emit(
-                    DatabaseInspectionResult((schema.database_name,), schema)
-                )
-                return
-            inspector = PostgreSQLInspector(self.connection)
+            inspector = InspectorFactory.create_inspector(self.connection)
             names = self.database_names
             if names is None:
                 names = tuple(inspector.list_databases())
-            schema = inspector.inspect_completion_metadata()
+            schema = inspector.inspect_database_summary()
             self.signals.succeeded.emit(DatabaseInspectionResult(tuple(names), schema))
         except Exception as err:
             message = self._sanitize_error(str(err))

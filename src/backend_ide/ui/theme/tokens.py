@@ -39,9 +39,9 @@ class ThemePalette(BaseModel):
 
 
 DARK_PALETTE = ThemePalette(
-    bg_main="#181825",
-    bg_sidebar="#11111b",
-    bg_surface="#1e1e2e",
+    bg_main="#1e1e2e",
+    bg_sidebar="#181825",
+    bg_surface="#24273a",
     bg_input="#313244",
     bg_hover="#45475a",
     border="#45475a",

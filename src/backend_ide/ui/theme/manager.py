@@ -2,76 +2,83 @@
 
 from __future__ import annotations
 
+import os
+
 from PySide6.QtCore import QObject, QSettings, Qt, Signal
 from PySide6.QtWidgets import QApplication
 
 from backend_ide.ui.theme.tokens import DARK_PALETTE, LIGHT_PALETTE, ThemeMode, ThemePalette
 
+ICONS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources", "icons")
+CHECKBOX_CHECKED_ICON = os.path.join(ICONS_DIR, "checkbox_checked.svg").replace("\\", "/")
+RADIO_CHECKED_ICON = os.path.join(ICONS_DIR, "radio_checked.svg").replace("\\", "/")
+
 
 class ThemeManager(QObject):
-    """Central manager for application dark/light appearance and QSS styling."""
+    """Central manager for application dark/light/system appearance and QSS styling."""
 
-    theme_changed = Signal(str)  # Emits new mode name ("light" or "dark")
+    theme_changed = Signal(str)  # Emits new mode name ("system", "light", or "dark")
 
-    _instance: ThemeManager | None = None
     SETTINGS_KEY = "appearance/theme"
+    _instance: ThemeManager | None = None
 
     def __init__(self, settings: QSettings | None = None) -> None:
         super().__init__()
         self._settings = settings or QSettings("BackendIDE", "BackendIDE")
-        saved_mode = self._settings.value(self.SETTINGS_KEY, ThemeMode.SYSTEM.value, type=str)
+        saved = self._settings.value(self.SETTINGS_KEY, ThemeMode.SYSTEM.value, type=str)
         try:
-            self._mode = ThemeMode(saved_mode)
-        except ValueError:
+            self._mode: ThemeMode = ThemeMode(saved)
+        except ValueError, TypeError:
             self._mode = ThemeMode.SYSTEM
-        self._resolved_mode = self._resolve_mode(self._mode)
-        self._palette = self._palette_for(self._resolved_mode)
+
+        self._resolved_mode: ThemeMode = self._resolve_mode(self._mode)
+        self._palette: ThemePalette = self._palette_for(self._resolved_mode)
 
         app = QApplication.instance()
-        if isinstance(app, QApplication):
-            app.styleHints().colorSchemeChanged.connect(self._on_system_color_scheme_changed)
+        if app is not None and isinstance(app, QApplication):
+            hints = app.styleHints()
+            hints.colorSchemeChanged.connect(self._on_system_scheme_changed)
 
     @classmethod
-    def get_instance(cls) -> ThemeManager:
+    def get_instance(cls, settings: QSettings | None = None) -> ThemeManager:
         """Get singleton instance of ThemeManager."""
         if cls._instance is None:
-            cls._instance = ThemeManager()
+            cls._instance = ThemeManager(settings=settings)
         return cls._instance
 
     @property
     def current_mode(self) -> ThemeMode:
-        """Return current theme mode."""
+        """Return current user-selected theme mode (system, light, or dark)."""
         return self._mode
 
     @property
-    def current_palette(self) -> ThemePalette:
-        """Return current color palette."""
-        return self._palette
-
-    @property
     def resolved_mode(self) -> ThemeMode:
-        """Return the concrete Light or Dark mode currently being rendered."""
+        """Return concrete resolved theme mode (light or dark)."""
         return self._resolved_mode
 
+    @property
+    def current_palette(self) -> ThemePalette:
+        """Return current active color palette."""
+        return self._palette
+
     def _resolve_mode(self, mode: ThemeMode) -> ThemeMode:
+        """Resolve abstract ThemeMode.SYSTEM to either LIGHT or DARK based on OS hints."""
         if mode != ThemeMode.SYSTEM:
             return mode
-        app = QApplication.instance()
-        if not isinstance(app, QApplication):
-            return ThemeMode.DARK
-        scheme = app.styleHints().colorScheme()
-        return ThemeMode.LIGHT if scheme == Qt.ColorScheme.Light else ThemeMode.DARK
 
-    @staticmethod
-    def _palette_for(mode: ThemeMode) -> ThemePalette:
+        app = QApplication.instance()
+        if app is not None and isinstance(app, QApplication):
+            scheme = app.styleHints().colorScheme()
+            return ThemeMode.LIGHT if scheme == Qt.ColorScheme.Light else ThemeMode.DARK
+
+        return ThemeMode.DARK
+
+    def _palette_for(self, mode: ThemeMode) -> ThemePalette:
+        """Return color palette for resolved theme mode."""
         return LIGHT_PALETTE if mode == ThemeMode.LIGHT else DARK_PALETTE
 
-    def _on_system_color_scheme_changed(self, _scheme: Qt.ColorScheme) -> None:
-        if self._mode == ThemeMode.SYSTEM:
-            self.set_mode(ThemeMode.SYSTEM, persist=False)
-
     def set_mode(self, mode: ThemeMode, *, persist: bool = True) -> None:
-        """Set theme mode and apply stylesheet."""
+        """Set theme mode, resolve concrete palette, persist and apply stylesheet."""
         self._mode = mode
         self._resolved_mode = self._resolve_mode(mode)
         self._palette = self._palette_for(self._resolved_mode)
@@ -88,6 +95,14 @@ class ThemeManager(QObject):
         new_mode = ThemeMode.LIGHT if self._resolved_mode == ThemeMode.DARK else ThemeMode.DARK
         self.set_mode(new_mode)
         return new_mode
+
+    def _on_system_scheme_changed(self, *args) -> None:
+        """Handle OS color scheme changes when mode is SYSTEM."""
+        if self._mode == ThemeMode.SYSTEM:
+            self._resolved_mode = self._resolve_mode(ThemeMode.SYSTEM)
+            self._palette = self._palette_for(self._resolved_mode)
+            self.apply_theme()
+            self.theme_changed.emit(self._mode.value)
 
     def apply_theme(self, app: QApplication | None = None) -> None:
         """Apply generated QSS stylesheet to QApplication."""
@@ -136,70 +151,39 @@ class ThemeManager(QObject):
         #sidebar_header {{
             background-color: {p.bg_sidebar};
             border-bottom: 1px solid {p.border};
-            padding: 6px 10px;
+            padding: 6px 8px;
         }}
 
-        QLabel#sidebar_title, QLabel#section_label {{
-            color: {p.text_secondary};
+        #sidebar_title {{
+            font-weight: bold;
             font-size: 11px;
-            font-weight: 700;
+            color: {p.text_secondary};
         }}
 
-        QLabel#count_badge {{
-            background-color: {p.bg_hover};
+        #section_label {{
+            font-weight: bold;
+            font-size: 12px;
             color: {p.text_primary};
-            border-radius: 8px;
-            padding: 1px 6px;
-            font-size: 10px;
-            font-weight: 700;
         }}
 
-        QWidget#environment_indicator {{
-            background: transparent;
-            border: none;
-        }}
-
-        QLabel#environment_text {{
+        #count_badge {{
+            background-color: {p.bg_input};
             color: {p.text_secondary};
-            background: transparent;
-            border: none;
+            border-radius: 10px;
+            padding: 1px 7px;
             font-size: 11px;
-            font-weight: 600;
-        }}
-
-        QLabel#environment_dot {{
-            border: none;
-            border-radius: 4px;
-        }}
-
-        QLabel#environment_dot[environment="none"] {{
-            background-color: {p.text_muted};
-        }}
-
-        QLabel#environment_dot[environment="development"] {{
-            background-color: {p.accent};
-        }}
-
-        QLabel#environment_dot[environment="testing"] {{
-            background-color: {p.success};
-        }}
-
-        QLabel#environment_dot[environment="staging"] {{
-            background-color: {p.warning};
-        }}
-
-        QLabel#environment_dot[environment="production"] {{
-            background-color: {p.danger};
+            font-weight: bold;
         }}
 
         QLabel[status="loading"] {{
             color: {p.info};
-            padding: 2px 4px;
+            font-size: 11px;
+            font-style: italic;
         }}
 
         QLabel[status="error"] {{
             color: {p.danger};
-            padding: 2px 4px;
+            font-size: 11px;
         }}
 
         /* Breadcrumb Bar */
@@ -211,30 +195,20 @@ class ThemeManager(QObject):
             color: {p.text_secondary};
         }}
 
-        QLabel#breadcrumb_item {{
-            color: {p.text_secondary};
+        #breadcrumb_conn, #breadcrumb_db {{
             font-weight: 500;
+            color: {p.text_primary};
         }}
 
-        QLabel#breadcrumb_separator {{
+        #breadcrumb_schema {{
+            font-weight: bold;
+            color: {p.accent};
+        }}
+
+        #breadcrumb_sep {{
             color: {p.text_muted};
             font-size: 14px;
-            font-weight: 700;
-        }}
-
-        QLabel#breadcrumb_current {{
-            color: {p.accent};
-            font-weight: 700;
-        }}
-
-        QLabel#results_status {{
-            color: {p.text_primary};
-            font-size: 12px;
-            font-weight: 700;
-        }}
-
-        QTextEdit#results_messages {{
-            font-family: 'Fira Code', 'JetBrains Mono', monospace;
+            font-weight: bold;
         }}
 
         /* Tabs Styling */
@@ -287,7 +261,7 @@ class ThemeManager(QObject):
 
         QPushButton:pressed, QToolButton:pressed {{
             background-color: {p.accent};
-            color: {p.text_on_accent};
+            color: #11111b;
         }}
 
         QPushButton:disabled, QToolButton:disabled {{
@@ -296,10 +270,25 @@ class ThemeManager(QObject):
             border-color: {p.border};
         }}
 
-        /* Primary Action Button */
+        /* Primary Action Buttons */
+        QPushButton#btn_new_conn {{
+            background-color: {p.accent};
+            color: #11111b;
+            font-weight: bold;
+            border: 1px solid {p.accent};
+            padding: 6px 16px;
+            border-radius: 6px;
+        }}
+
+        QPushButton#btn_new_conn:hover {{
+            background-color: {p.accent_hover};
+            border-color: {p.accent_hover};
+            color: #11111b;
+        }}
+
         QPushButton#btn_execute {{
             background-color: {p.success};
-            color: {p.text_on_accent};
+            color: #11111b;
             font-weight: bold;
             border: 1px solid {p.success};
             padding: 6px 18px;
@@ -309,69 +298,56 @@ class ThemeManager(QObject):
         QPushButton#btn_execute:hover {{
             background-color: {p.success_hover};
             border-color: {p.success_hover};
-            color: {p.text_on_accent};
+            color: #11111b;
         }}
 
-        QToolButton#theme_toggle_btn, QToolButton#icon_button {{
-            padding: 5px;
+        /* Icon Buttons */
+        QPushButton#icon_button, QToolButton#icon_button {{
+            padding: 0px;
+            border: 1px solid transparent;
+            background-color: transparent;
+            border-radius: 4px;
+        }}
+
+        QPushButton#icon_button:hover, QToolButton#icon_button:hover {{
+            background-color: {p.bg_hover};
+            border-color: {p.border};
+        }}
+
+        QPushButton#theme_toggle_btn, QToolButton#theme_toggle_btn {{
+            font-size: 13px;
+            padding: 4px;
             border-radius: 6px;
+            background-color: {p.bg_surface};
+            border: 1px solid {p.border};
         }}
 
-        /* Popup & Context Menus */
+        QToolButton#theme_toggle_btn::menu-button {{
+            border: none;
+            width: 14px;
+        }}
+
+        /* Menus */
         QMenu {{
             background-color: {p.bg_surface};
-            color: {p.text_primary};
             border: 1px solid {p.border};
             border-radius: 6px;
             padding: 4px;
         }}
 
         QMenu::item {{
-            background-color: transparent;
-            color: {p.text_primary};
-            padding: 6px 28px 6px 24px;
+            padding: 6px 20px 6px 12px;
             border-radius: 4px;
+            color: {p.text_primary};
         }}
 
         QMenu::item:selected {{
             background-color: {p.bg_hover};
-            color: {p.text_primary};
+            color: {p.accent};
         }}
 
         QMenu::item:checked {{
-            color: {p.accent};
-            font-weight: 600;
-        }}
-
-        QMenu::item:disabled {{
-            color: {p.text_muted};
-        }}
-
-        QMenu::separator {{
-            background-color: {p.border};
-            height: 1px;
-            margin: 4px 8px;
-        }}
-
-        QListView#completion_popup {{
-            background-color: {p.bg_surface};
-            color: {p.text_primary};
-            border: 1px solid {p.border};
-            border-radius: 6px;
-            padding: 3px;
-            font-family: 'Fira Code', 'JetBrains Mono', monospace;
-            font-size: 11px;
-            outline: none;
-        }}
-
-        QListView#completion_popup::item {{
-            color: {p.text_primary};
-            padding: 5px 7px;
-            border-radius: 4px;
-        }}
-
-        QListView#completion_popup::item:selected {{
-            background-color: {p.bg_hover};
+            font-weight: bold;
             color: {p.accent};
         }}
 
@@ -393,26 +369,165 @@ class ThemeManager(QObject):
             background-color: {p.bg_surface};
             border: 1px solid {p.border};
             selection-background-color: {p.accent};
-            selection-color: {p.text_on_accent};
+            selection-color: #11111b;
             padding: 4px;
             border-radius: 6px;
         }}
 
-        /* Tree Widget */
-        QTreeWidget {{
+        /* CheckBoxes & RadioButtons */
+        QCheckBox, QRadioButton {{
+            color: {p.text_primary};
+            spacing: 8px;
+            font-size: 13px;
+        }}
+
+        QCheckBox::indicator {{
+            width: 18px;
+            height: 18px;
+            border: 2px solid {p.border};
+            border-radius: 4px;
+            background-color: {p.bg_input};
+        }}
+
+        QCheckBox::indicator:hover {{
+            border-color: {p.accent};
+            background-color: {p.bg_hover};
+        }}
+
+        QCheckBox::indicator:checked {{
+            background-color: {p.accent};
+            border-color: {p.accent};
+            image: url("{CHECKBOX_CHECKED_ICON}");
+        }}
+
+        QCheckBox::indicator:checked:hover {{
+            background-color: {p.accent_hover};
+            border-color: {p.accent_hover};
+        }}
+
+        QCheckBox::indicator:disabled {{
+            border-color: {p.border};
             background-color: {p.bg_sidebar};
+        }}
+
+        QRadioButton::indicator {{
+            width: 18px;
+            height: 18px;
+            border: 2px solid {p.border};
+            border-radius: 9px;
+            background-color: {p.bg_input};
+        }}
+
+        QRadioButton::indicator:hover {{
+            border-color: {p.accent};
+            background-color: {p.bg_hover};
+        }}
+
+        QRadioButton::indicator:checked {{
+            background-color: {p.accent};
+            border-color: {p.accent};
+            image: url("{RADIO_CHECKED_ICON}");
+        }}
+
+        /* List Widget & List View */
+        QListWidget, QListView {{
+            background-color: {p.bg_input};
             border: 1px solid {p.border};
             border-radius: 6px;
             padding: 4px;
+            color: {p.text_primary};
+        }}
+
+        QListWidget::item, QListView::item {{
+            padding: 6px 8px;
+            border-radius: 4px;
+            color: {p.text_primary};
+            margin: 1px 0px;
+            border: 1px solid transparent;
+        }}
+
+        QListWidget::item:hover, QListView::item:hover {{
+            background-color: {p.bg_hover};
+            color: {p.text_primary};
+        }}
+
+        QListWidget::item:selected, QListView::item:selected {{
+            background-color: {p.bg_surface};
+            color: {p.accent};
+            font-weight: bold;
+            border: 1px solid {p.accent};
+        }}
+
+        QListWidget::item:selected:hover, QListView::item:selected:hover {{
+            background-color: {p.bg_surface};
+            color: {p.accent_hover};
+            border: 1px solid {p.accent_hover};
+        }}
+
+        /* Checkable Indicators for Lists and Trees */
+        QListWidget::indicator, QListView::indicator, QTreeWidget::indicator {{
+            width: 18px;
+            height: 18px;
+            border: 2px solid {p.border};
+            border-radius: 4px;
+            background-color: {p.bg_surface};
+        }}
+
+        QListWidget::indicator:hover,
+        QListView::indicator:hover,
+        QTreeWidget::indicator:hover {{
+            border-color: {p.accent};
+            background-color: {p.bg_hover};
+        }}
+
+        QListWidget::indicator:checked,
+        QListView::indicator:checked,
+        QTreeWidget::indicator:checked {{
+            background-color: {p.accent};
+            border-color: {p.accent};
+            image: url("{CHECKBOX_CHECKED_ICON}");
+        }}
+
+        QListWidget::indicator:checked:hover,
+        QListView::indicator:checked:hover,
+        QTreeWidget::indicator:checked:hover {{
+            background-color: {p.accent_hover};
+            border-color: {p.accent_hover};
+        }}
+
+        /* Text Editors & Plain Text */
+        QPlainTextEdit, QTextEdit {{
+            background-color: {p.bg_input};
+            color: {p.text_primary};
+            border: 1px solid {p.border};
+            border-radius: 6px;
+            padding: 8px;
+            selection-background-color: {p.accent};
+            selection-color: #11111b;
+        }}
+
+        QPlainTextEdit:focus, QTextEdit:focus {{
+            border-color: {p.border_active};
+        }}
+
+        /* Tree Widget */
+        QTreeWidget {{
+            background-color: {p.bg_surface};
+            border: 1px solid {p.border};
+            border-radius: 6px;
+            padding: 4px;
+            color: {p.text_primary};
         }}
 
         QTreeWidget::item {{
             padding: 5px;
             border-radius: 4px;
+            color: {p.text_primary};
         }}
 
         QTreeWidget::item:hover {{
             background-color: {p.bg_hover};
+            color: {p.text_primary};
         }}
 
         QTreeWidget::item:selected {{
@@ -421,26 +536,32 @@ class ThemeManager(QObject):
             font-weight: bold;
         }}
 
-        QTreeWidget#explorer_tree {{
-            border: none;
-            border-radius: 0px;
-            padding: 2px;
-        }}
-
-        QTreeWidget#explorer_tree::item {{
-            min-height: 18px;
-            padding: 2px 3px;
-        }}
-
         /* Table View Grid */
-        QTableView {{
-            background-color: {p.bg_input};
-            alternate-background-color: {p.bg_hover};
+        QTableView, QTableWidget {{
+            background-color: {p.bg_surface};
+            alternate-background-color: {p.bg_input};
             gridline-color: {p.border};
             border: 1px solid {p.border};
             border-radius: 6px;
-            selection-background-color: {p.accent};
-            selection-color: {p.text_on_accent};
+            color: {p.text_primary};
+            selection-background-color: {p.bg_hover};
+            selection-color: {p.accent};
+        }}
+
+        QTableView::item, QTableWidget::item {{
+            padding: 4px 6px;
+            color: {p.text_primary};
+        }}
+
+        QTableView::item:hover, QTableWidget::item:hover {{
+            background-color: {p.bg_hover};
+            color: {p.text_primary};
+        }}
+
+        QTableView::item:selected, QTableWidget::item:selected {{
+            background-color: {p.bg_hover};
+            color: {p.accent};
+            font-weight: bold;
         }}
 
         QHeaderView::section {{
@@ -448,11 +569,6 @@ class ThemeManager(QObject):
             color: {p.text_primary};
             font-weight: bold;
             padding: 7px;
-            border: 1px solid {p.border};
-        }}
-
-        QTableCornerButton::section {{
-            background-color: {p.bg_input};
             border: 1px solid {p.border};
         }}
 

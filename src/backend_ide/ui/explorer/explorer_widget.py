@@ -1,5 +1,7 @@
 """Database Explorer Widget with Search Filter, Header Action Bar, and Context Actions."""
 
+from __future__ import annotations
+
 import qtawesome as qta
 from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtWidgets import (
@@ -9,7 +11,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QToolButton,
+    QPushButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -17,8 +19,8 @@ from PySide6.QtWidgets import (
 )
 
 from backend_ide.domain.schema import Column, DatabaseSchema
+from backend_ide.domain.sql.joins import JoinEngine
 from backend_ide.ui.explorer.tree_items import ExplorerNodeType, ExplorerTreeItem
-from backend_ide.ui.theme import ThemeManager
 
 
 class DatabaseExplorerWidget(QWidget):
@@ -30,15 +32,15 @@ class DatabaseExplorerWidget(QWidget):
     database_changed = Signal(str)
     add_connection_requested = Signal()
     table_expansion_requested = Signal(str, str)
+    code_generation_requested = Signal(str)
+    data_view_requested = Signal(str, str)  # Emits (schema_name, table_name)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("sidebar_container")
         self.setMinimumWidth(280)
         self._schema_model: DatabaseSchema | None = None
-        self._theme_manager = ThemeManager.get_instance()
         self._setup_ui()
-        self._theme_manager.theme_changed.connect(self._refresh_icons)
 
     def _setup_ui(self) -> None:
         """Construct Explorer layout."""
@@ -46,50 +48,51 @@ class DatabaseExplorerWidget(QWidget):
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(4)
 
-        # 1. Header Toolbar Bar
+        # 1. Header Toolbar Bar (Title + Entities Badge + Compact Actions)
         self.header = QWidget()
         self.header.setObjectName("sidebar_header")
         header_layout = QHBoxLayout(self.header)
         header_layout.setContentsMargins(4, 2, 4, 2)
-        header_layout.setSpacing(6)
+        header_layout.setSpacing(4)
 
         self.lbl_title = QLabel("DATABASE EXPLORER")
         self.lbl_title.setObjectName("sidebar_title")
+
         self.lbl_entities_count = QLabel("0")
         self.lbl_entities_count.setObjectName("count_badge")
         self.lbl_entities_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        header_layout.addWidget(self.lbl_title)
-        header_layout.addWidget(self.lbl_entities_count)
-        header_layout.addStretch()
-
-        self.btn_refresh = QToolButton()
+        self.btn_refresh = QPushButton()
         self.btn_refresh.setObjectName("icon_button")
+        self.btn_refresh.setIcon(qta.icon("fa6s.arrows-rotate"))
         self.btn_refresh.setFixedSize(32, 32)
-        self.btn_refresh.setToolTip("Refrescar metadatos")
+        self.btn_refresh.setToolTip("Refrescar estructura")
         self.btn_refresh.clicked.connect(self.refresh_requested.emit)
 
-        self.btn_add = QToolButton()
+        self.btn_add = QPushButton()
         self.btn_add.setObjectName("icon_button")
+        self.btn_add.setIcon(qta.icon("fa6s.plus"))
         self.btn_add.setFixedSize(32, 32)
         self.btn_add.setToolTip("Nueva conexión")
         self.btn_add.clicked.connect(self.add_connection_requested.emit)
 
+        header_layout.addWidget(self.lbl_title)
+        header_layout.addStretch()
+        header_layout.addWidget(self.lbl_entities_count)
         header_layout.addWidget(self.btn_refresh)
         header_layout.addWidget(self.btn_add)
 
-        # 2. Active database selector and compact actions
+        # 2. Active database selector row
         self.database_row = QWidget()
         database_layout = QHBoxLayout(self.database_row)
         database_layout.setContentsMargins(0, 0, 0, 0)
-        database_layout.setSpacing(4)
+        database_layout.setSpacing(0)
 
         self.cmb_database = QComboBox()
         self.cmb_database.setFixedHeight(32)
         self.cmb_database.setToolTip("Cambiar la base de datos activa")
         self.cmb_database.currentTextChanged.connect(self._emit_database_changed)
-
-        database_layout.addWidget(self.cmb_database, 1)
+        database_layout.addWidget(self.cmb_database)
 
         # 3. Filter Search Box
         self.txt_filter = QLineEdit()
@@ -97,20 +100,19 @@ class DatabaseExplorerWidget(QWidget):
         self.txt_filter.setFixedHeight(32)
         self.txt_filter.setPlaceholderText("Filtrar tablas...")
         self.txt_filter.setClearButtonEnabled(True)
-        self.filter_action = self.txt_filter.addAction(
+        self.txt_filter.addAction(
             qta.icon("fa6s.filter"),
             QLineEdit.ActionPosition.TrailingPosition,
         )
         self.txt_filter.textChanged.connect(self.filter_items)
 
-        # 4. State feedback
+        # 4. State feedback label
         self.lbl_state = QLabel()
         self.lbl_state.setWordWrap(True)
         self.lbl_state.hide()
 
         # 5. Tree Widget
         self.tree = QTreeWidget()
-        self.tree.setObjectName("explorer_tree")
         self.tree.setHeaderHidden(True)
         self.tree.setIndentation(16)
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -122,30 +124,6 @@ class DatabaseExplorerWidget(QWidget):
         layout.addWidget(self.txt_filter)
         layout.addWidget(self.lbl_state)
         layout.addWidget(self.tree)
-        self._refresh_icons()
-
-    def _refresh_icons(self, _mode_str: str | None = None) -> None:
-        """Render compact actions with colors from the active design tokens."""
-        palette = self._theme_manager.current_palette
-        self.btn_refresh.setIcon(qta.icon("fa6s.arrows-rotate", color=palette.text_secondary))
-        self.btn_add.setIcon(qta.icon("fa6s.plus", color=palette.text_secondary))
-        self.filter_action.setIcon(qta.icon("fa6s.filter", color=palette.text_muted))
-        self._refresh_tree_icons()
-
-    def _refresh_tree_icons(self) -> None:
-        def refresh_item(item: QTreeWidgetItem) -> None:
-            if isinstance(item, ExplorerTreeItem):
-                item.refresh_appearance()
-            for child_index in range(item.childCount()):
-                refresh_item(item.child(child_index))
-
-        for item_index in range(self.tree.topLevelItemCount()):
-            refresh_item(self.tree.topLevelItem(item_index))
-
-    def _set_state_kind(self, kind: str) -> None:
-        self.lbl_state.setProperty("status", kind)
-        self.lbl_state.style().unpolish(self.lbl_state)
-        self.lbl_state.style().polish(self.lbl_state)
 
     def _emit_database_changed(self, database_name: str) -> None:
         """Emit only meaningful database selections."""
@@ -170,8 +148,10 @@ class DatabaseExplorerWidget(QWidget):
 
     def set_loading(self, preserve_tree: bool = False) -> None:
         """Show progress during first load while preserving useful refreshed data."""
+        self.lbl_state.setProperty("status", "loading")
+        self.lbl_state.style().unpolish(self.lbl_state)
+        self.lbl_state.style().polish(self.lbl_state)
         self.lbl_state.setText("Cargando estructura…")
-        self._set_state_kind("loading")
         self.lbl_state.show()
         if not preserve_tree:
             self.tree.clear()
@@ -180,8 +160,10 @@ class DatabaseExplorerWidget(QWidget):
 
     def show_error(self, message: str, preserve_tree: bool = False) -> None:
         """Show an actionable failure without erasing the last successful tree."""
+        self.lbl_state.setProperty("status", "error")
+        self.lbl_state.style().unpolish(self.lbl_state)
+        self.lbl_state.style().polish(self.lbl_state)
         self.lbl_state.setText(message)
-        self._set_state_kind("error")
         self.lbl_state.show()
         if not preserve_tree:
             self.tree.clear()
@@ -365,54 +347,73 @@ class DatabaseExplorerWidget(QWidget):
         menu = QMenu(self)
 
         if item.node_type == ExplorerNodeType.TABLE:
-            palette = self._theme_manager.current_palette
             schema_name = item.node_data.get("schema", "public")
             table_name = item.node_data.get("table", "")
             qual_name = f"{schema_name}.{table_name}"
 
+            act_open_grid = menu.addAction(
+                qta.icon("fa6s.table-cells", color="#89b4fa"),
+                "Explorar Datos en Grilla interactiva",
+            )
             act_open_data = menu.addAction(
-                qta.icon("fa6s.table", color=palette.accent), "Abrir datos (SELECT 100)"
+                qta.icon("fa6s.table", color="#89b4fa"), "Abrir consulta SELECT 100"
             )
             act_open_struct = menu.addAction(
-                qta.icon("fa6s.circle-info", color=palette.text_secondary), "Ver estructura"
+                qta.icon("fa6s.circle-info", color="#a6adc8"), "Ver estructura"
             )
             menu.addSeparator()
 
             menu_gen = QMenu("Generar consulta SQL", menu)
-            menu_gen.setIcon(qta.icon("fa6s.code", color=palette.accent_hover))
+            menu_gen.setIcon(qta.icon("fa6s.code", color="#cba6f7"))
             menu.addMenu(menu_gen)
             act_gen_select = menu_gen.addAction("SELECT")
+            act_gen_joins = menu_gen.addAction("SELECT con JOINs (FKs)")
             act_gen_insert = menu_gen.addAction("INSERT")
             act_gen_update = menu_gen.addAction("UPDATE")
             act_gen_delete = menu_gen.addAction("DELETE")
 
             menu.addSeparator()
+            act_gen_code = menu.addAction(
+                qta.icon("fa6s.laptop-code", color="#a6e3a1"),
+                "Generar Código / Modelos...",
+            )
             act_copy = menu.addAction(
-                qta.icon("fa6s.copy", color=palette.text_secondary), "Copiar nombre de tabla"
+                qta.icon("fa6s.copy", color="#a6adc8"), "Copiar nombre de tabla"
             )
 
             action = menu.exec(self.tree.viewport().mapToGlobal(pos))
 
-            if action == act_open_data:
+            if action == act_open_grid:
+                self.data_view_requested.emit(schema_name, table_name)
+            elif action == act_open_data:
                 self.query_requested.emit(f"SELECT * FROM {qual_name} LIMIT 100;")
             elif action == act_open_struct:
                 self.structure_requested.emit(schema_name, table_name)
             elif action == act_gen_select:
                 self.query_requested.emit(self._generate_select_sql(schema_name, table_name))
+            elif action == act_gen_joins:
+                if self._schema_model:
+                    self.query_requested.emit(
+                        JoinEngine.generate_select_with_joins(
+                            self._schema_model, table_name, schema_name
+                        )
+                    )
+                else:
+                    self.query_requested.emit(f"SELECT * FROM {qual_name};")
             elif action == act_gen_insert:
                 self.query_requested.emit(self._generate_insert_sql(schema_name, table_name))
             elif action == act_gen_update:
                 self.query_requested.emit(self._generate_update_sql(schema_name, table_name))
             elif action == act_gen_delete:
                 self.query_requested.emit(f"DELETE FROM {qual_name} WHERE id = 1;")
+            elif action == act_gen_code:
+                self.code_generation_requested.emit(table_name)
             elif action == act_copy:
                 QApplication.clipboard().setText(qual_name)
 
         elif item.node_type in (ExplorerNodeType.CONNECTION, ExplorerNodeType.SCHEMA):
-            palette = self._theme_manager.current_palette
             act_refresh = menu.addAction(
-                qta.icon("fa6s.arrows-rotate", color=palette.text_secondary),
-                "Refrescar metadatos",
+                qta.icon("fa6s.arrows-rotate", color="#a6adc8"), "Refrescar metadatos"
             )
             action = menu.exec(self.tree.viewport().mapToGlobal(pos))
             if action == act_refresh:
@@ -424,7 +425,7 @@ class DatabaseExplorerWidget(QWidget):
             return f"SELECT * FROM {schema_name}.{table_name};"
 
         t = self._schema_model.find_table(table_name, schema_name)
-        if not t or not t.columns:
+        if not t:
             return f"SELECT * FROM {schema_name}.{table_name};"
 
         cols_str = ",\n    ".join([c.name for c in t.columns])
@@ -440,8 +441,6 @@ class DatabaseExplorerWidget(QWidget):
             return f"INSERT INTO {schema_name}.{table_name} DEFAULT VALUES;"
 
         cols = [c.name for c in t.columns if not c.is_auto_increment]
-        if not cols:
-            return f"INSERT INTO {schema_name}.{table_name} DEFAULT VALUES;"
         cols_str = ", ".join(cols)
         vals_str = ", ".join([f":{c}" for c in cols])
         return f"INSERT INTO {schema_name}.{table_name} ({cols_str})\nVALUES ({vals_str});"
@@ -456,8 +455,6 @@ class DatabaseExplorerWidget(QWidget):
             return f"UPDATE {schema_name}.{table_name} SET column = value WHERE condition;"
 
         cols = [c.name for c in t.columns if not c.is_primary_key]
-        if not cols:
-            return f"UPDATE {schema_name}.{table_name} SET column = value WHERE condition;"
         set_str = ",\n    ".join([f"{c} = :{c}" for c in cols])
         pk_cols = t.primary_key.column_names if t.primary_key else ["id"]
         where_str = " AND ".join([f"{pk} = :{pk}" for pk in pk_cols])

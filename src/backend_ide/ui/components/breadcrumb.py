@@ -1,5 +1,7 @@
 """Breadcrumb Bar Component displaying active database hierarchy context."""
 
+from __future__ import annotations
+
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 
@@ -16,15 +18,19 @@ class BreadcrumbWidget(QWidget):
         layout.setSpacing(6)
 
         self.lbl_conn = QLabel("Local PostgreSQL (Dev)")
-        self.lbl_conn.setObjectName("breadcrumb_item")
+        self.lbl_conn.setObjectName("breadcrumb_conn")
+
         self.lbl_sep1 = QLabel("›")
-        self.lbl_sep1.setObjectName("breadcrumb_separator")
+        self.lbl_sep1.setObjectName("breadcrumb_sep")
+
         self.lbl_db = QLabel("postgres")
-        self.lbl_db.setObjectName("breadcrumb_item")
+        self.lbl_db.setObjectName("breadcrumb_db")
+
         self.lbl_sep2 = QLabel("›")
-        self.lbl_sep2.setObjectName("breadcrumb_separator")
+        self.lbl_sep2.setObjectName("breadcrumb_sep")
+
         self.lbl_schema = QLabel("public")
-        self.lbl_schema.setObjectName("breadcrumb_current")
+        self.lbl_schema.setObjectName("breadcrumb_schema")
 
         layout.addWidget(self.lbl_conn)
         layout.addWidget(self.lbl_sep1)

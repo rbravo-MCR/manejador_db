@@ -6,7 +6,7 @@
 
 Tecnología principal:
 
-- Python 3.14.4
+- Python 3.12+
 
 - PySide6
 
@@ -418,11 +418,14 @@ Ejemplo conceptual:
 
 ```python
 class SQLDialectProvider:
-    def keywords(self) -> list[str]: ...
+    def keywords(self) -> list[str]:
+        ...
 
-    def functions(self) -> list[str]: ...
+    def functions(self) -> list[str]:
+        ...
 
-    def data_types(self) -> list[str]: ...
+    def data_types(self) -> list[str]:
+        ...
 ```
 
 Implementaciones:
@@ -446,17 +449,23 @@ Interfaz conceptual:
 
 ```python
 class MetadataProvider:
-    async def get_schemas(self): ...
+    async def get_schemas(self):
+        ...
 
-    async def get_tables(self, schema=None): ...
+    async def get_tables(self, schema=None):
+        ...
 
-    async def get_views(self, schema=None): ...
+    async def get_views(self, schema=None):
+        ...
 
-    async def get_columns(self, table, schema=None): ...
+    async def get_columns(self, table, schema=None):
+        ...
 
-    async def get_foreign_keys(self, table, schema=None): ...
+    async def get_foreign_keys(self, table, schema=None):
+        ...
 
-    async def get_functions(self): ...
+    async def get_functions(self):
+        ...
 ```
 
 Cada motor debe implementar su propio proveedor.
@@ -555,7 +564,8 @@ class AutocompleteEngine:
         cursor_position: int,
         metadata,
         dialect,
-    ) -> list[CompletionItem]: ...
+    ) -> list[CompletionItem]:
+        ...
 ```
 
 No poner toda la lógica dentro del widget Qt.
@@ -830,7 +840,14 @@ context = analyzer.analyze(sql, cursor_position)
 resultado aproximado:
 
 ```python
-SQLContext(clause="SELECT", current_token="u", aliases={"u": "users"}, tables=["users"])
+SQLContext(
+    clause="SELECT",
+    current_token="u",
+    aliases={
+        "u": "users"
+    },
+    tables=["users"]
+)
 ```
 
 ---

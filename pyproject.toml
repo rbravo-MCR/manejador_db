@@ -44,7 +44,14 @@ dev = [
     "pytest-qt>=4.4.0",
     "ruff>=0.9.0",
     "maturin>=1.8.0",
+    "pyinstaller>=6.10.0",
 ]
+build = [
+    "pyinstaller>=6.10.0",
+]
+
+[project.scripts]
+backend-ide = "backend_ide.main:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/backend_ide"]
