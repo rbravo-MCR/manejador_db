@@ -106,16 +106,17 @@ class SqlCompleter(QCompleter):
         self.popup().setCurrentIndex(first_index)
 
     def eventFilter(self, watched, event) -> bool:
-        """Accept the highlighted suggestion with Tab while the popup is visible."""
+        """Handle completion keys from either the editor or the focused popup."""
+        completion_targets = (self.editor, self.popup(), self.popup().viewport())
         if (
-            watched is self.editor
+            watched in completion_targets
             and event.type() == QEvent.Type.KeyPress
             and event.key() in (Qt.Key.Key_Tab, Qt.Key.Key_Return, Qt.Key.Key_Enter)
             and self.popup().isVisible()
         ):
             return self._accept_current()
         if (
-            watched is self.editor
+            watched in completion_targets
             and event.type() == QEvent.Type.KeyPress
             and event.key() == Qt.Key.Key_Escape
             and self.popup().isVisible()

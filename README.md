@@ -40,7 +40,7 @@ Actualmente el repositorio incluye:
 - ejecución no bloqueante del documento o de la selección SQL contra la conexión y base activas;
 - grid de resultados y exportación a CSV y JSON;
 - temas Sistema, Claro y Oscuro con selección persistente;
-- 113 pruebas automatizadas.
+- 114 pruebas automatizadas.
 
 El proyecto continúa en pre-alpha. La protección adicional para operaciones en producción, las
 transacciones explícitas, los adaptadores completos de MySQL/MariaDB y SQL Server, la segunda

@@ -442,6 +442,33 @@ def test_enter_accepts_completion_and_escape_dismisses_popup(qtbot):
     assert not editor_widget.completer.popup().isVisible()
 
 
+def test_enter_on_popup_accepts_highlighted_completion_like_click(qtbot):
+    """Enter must activate the highlighted popup row even when the list has focus."""
+    editor_widget = SqlEditorWidget()
+    qtbot.addWidget(editor_widget)
+    editor_widget.set_completion_schema(create_sample_schema())
+    editor_widget.set_sql_text("SELECT us")
+    cursor = editor_widget.editor.textCursor()
+    cursor.movePosition(cursor.MoveOperation.End)
+    editor_widget.editor.setTextCursor(cursor)
+    editor_widget.show()
+    editor_widget.editor.setFocus()
+    editor_widget.completer.trigger_popup()
+    users_index = next(
+        editor_widget.completer.model_items.index(row, 0)
+        for row in range(editor_widget.completer.model_items.rowCount())
+        if editor_widget.completer.model_items.item(row).data(Qt.ItemDataRole.UserRole) == "users"
+    )
+    popup = editor_widget.completer.popup()
+    popup.setCurrentIndex(users_index)
+    popup.setFocus()
+
+    qtbot.keyClick(popup, Qt.Key.Key_Return)
+
+    assert editor_widget.editor.toPlainText() == "SELECT users"
+    assert not popup.isVisible()
+
+
 def test_popup_model_exposes_insert_text_and_documentation(qtbot):
     editor_widget = SqlEditorWidget()
     qtbot.addWidget(editor_widget)
