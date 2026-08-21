@@ -4,13 +4,15 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QTextCursor
+from PySide6.QtWidgets import QApplication, QDialog, QWidget
 
-from backend_ide.domain.connection import ConnectionProfile
-from backend_ide.domain.schema import DatabaseSchema, Schema, Table
+from backend_ide.domain.connection import ConnectionProfile, Environment
+from backend_ide.domain.schema import Column, DatabaseSchema, Schema, Table
 from backend_ide.infrastructure.database.schema_inspection_worker import DatabaseInspectionResult
 from backend_ide.ui.app import create_app
-from backend_ide.ui.theme import ThemeManager, ThemeMode
+from backend_ide.ui.theme import DARK_PALETTE, LIGHT_PALETTE, ThemeManager, ThemeMode
 from backend_ide.ui.views.main_window import MainWindow
 
 # Set offscreen platform plugin for headless CI testing
@@ -34,7 +36,7 @@ def test_main_window_creation(app_instance, qtbot):
     assert window.conn_selector is not None
     assert window.theme_toggle is not None
     assert window.explorer_widget is not None
-    assert window.explorer_widget.minimumWidth() >= 320
+    assert window.explorer_widget.minimumWidth() == 280
     assert window.tabs_workspace.count() == 1
     assert window.status_bar is not None
 
@@ -54,7 +56,7 @@ def test_header_rows_stay_compact_and_controls_are_vertically_aligned(app_instan
     controls = [
         window.conn_selector.btn_new,
         window.conn_selector.combo,
-        window.conn_selector.env_badge,
+        window.conn_selector.env_indicator,
         window.conn_selector.btn_edit,
     ]
     assert all(control.height() <= 36 for control in controls)
@@ -63,24 +65,176 @@ def test_header_rows_stay_compact_and_controls_are_vertically_aligned(app_instan
     assert max(vertical_centers) - min(vertical_centers) <= 2
 
 
-def test_theme_toggle_functionality(app_instance, qtbot):
-    """Test switching Dark/Light theme updates ThemeManager and ToggleButton text."""
+def test_top_bar_groups_controls_by_documented_function(app_instance, qtbot):
+    """The main actions must stay in stable connection, query, and application zones."""
+    app, window = app_instance
+    qtbot.addWidget(window)
+    window.show()
+    app.processEvents()
+
+    assert window.minimumSize().width() == 1100
+    assert window.minimumSize().height() == 700
+    assert window.top_bar.layout().columnCount() == 3
+    assert window.top_bar.layout().itemAtPosition(0, 0).widget() is window.conn_selector
+    assert window.top_bar.layout().itemAtPosition(0, 1).widget() is window.query_toolbar
+    assert window.top_bar.layout().itemAtPosition(0, 2).widget() is window.theme_toggle
+    assert window.btn_execute.height() == 32
+    assert window.btn_new_query.height() == 32
+    assert window.btn_er_diagram.height() == 32
+    assert not window.btn_er_diagram.isEnabled()
+    assert window.btn_execute.text() == "Ejecutar"
+    assert window.btn_new_query.text() == "Nueva consulta"
+    assert window.btn_er_diagram.text() == "Diagrama ER"
+
+
+def test_connection_controls_follow_context_then_actions(app_instance, qtbot):
+    """Connection context must precede its actions and remain readable when resized."""
+    _, window = app_instance
+    qtbot.addWidget(window)
+    layout = window.conn_selector.layout()
+    widgets = [layout.itemAt(index).widget() for index in range(layout.count())]
+
+    assert widgets == [
+        window.conn_selector.lbl_profile,
+        window.conn_selector.combo,
+        window.conn_selector.env_indicator,
+        window.conn_selector.btn_new,
+        window.conn_selector.btn_edit,
+    ]
+    assert window.conn_selector.combo.minimumWidth() == 180
+    assert window.conn_selector.env_indicator.text_label.text() == "Desarrollo"
+    assert window.conn_selector.env_indicator.dot.property("environment") == "development"
+
+
+@pytest.mark.parametrize("size", [(1340, 840), (1100, 700)])
+def test_documented_window_sizes_have_no_clipped_toolbar_controls(app_instance, qtbot, size):
+    """Every top-level control must remain visible at normal and minimum window sizes."""
+    app, window = app_instance
+    qtbot.addWidget(window)
+    window.conn_selector.env_indicator.set_environment(Environment.PRODUCTION)
+    window.resize(*size)
+    window.show()
+    app.processEvents()
+
+    top_rect = window.top_bar.rect()
+    for control in (window.conn_selector, window.query_toolbar, window.theme_toggle):
+        rect = control.geometry()
+        assert top_rect.contains(rect.topLeft())
+        assert top_rect.contains(rect.bottomRight())
+        assert control.isVisible()
+
+    connection_rect = window.conn_selector.rect()
+    for control in (
+        window.conn_selector.lbl_profile,
+        window.conn_selector.combo,
+        window.conn_selector.env_indicator,
+        window.conn_selector.btn_new,
+        window.conn_selector.btn_edit,
+    ):
+        rect = control.geometry()
+        assert connection_rect.contains(rect.topLeft())
+        assert connection_rect.contains(rect.bottomRight())
+        if control is window.conn_selector.combo:
+            assert control.width() >= control.minimumWidth() == 180
+        else:
+            assert control.width() >= control.minimumSizeHint().width()
+
+    explorer_width, workspace_width = window.main_splitter.sizes()
+    editor_height, results_height = window.workspace_splitter.sizes()
+    assert abs(explorer_width - 340) <= 2
+    assert workspace_width > explorer_width
+    assert editor_height >= 240
+    assert results_height >= 180
+    assert 0.62 <= editor_height / (editor_height + results_height) <= 0.68
+
+
+def test_theme_control_exposes_system_light_and_dark(app_instance, qtbot):
+    """The compact theme control must expose every documented appearance mode."""
     _, window = app_instance
     qtbot.addWidget(window)
 
     manager = ThemeManager.get_instance()
-    manager.set_mode(ThemeMode.DARK)
+    manager.set_mode(ThemeMode.SYSTEM)
 
-    assert manager.current_mode == ThemeMode.DARK
-    assert "Light" in window.theme_toggle.text()
+    assert window.theme_toggle.height() == 32
+    assert [action.data() for action in window.theme_toggle.menu().actions()] == [
+        ThemeMode.SYSTEM,
+        ThemeMode.LIGHT,
+        ThemeMode.DARK,
+    ]
 
-    # Click toggle button
-    qtbot.mouseClick(
-        window.theme_toggle, pytest.importorskip("PySide6.QtCore").Qt.MouseButton.LeftButton
+    dark_action = next(
+        action for action in window.theme_toggle.menu().actions() if action.data() == ThemeMode.DARK
     )
+    dark_action.trigger()
+    assert manager.current_mode == ThemeMode.DARK
+    assert dark_action.isChecked()
+
+    qtbot.mouseClick(window.theme_toggle, Qt.MouseButton.LeftButton)
 
     assert manager.current_mode == ThemeMode.LIGHT
-    assert "Dark" in window.theme_toggle.text()
+
+
+def test_theme_manager_persists_all_documented_modes(qapp, tmp_path):
+    """A restart must restore the exact appearance mode selected by the user."""
+    settings_path = tmp_path / "theme.ini"
+    settings = QSettings(str(settings_path), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings=settings)
+
+    for mode in (ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK):
+        manager.set_mode(mode)
+        assert manager.current_mode == mode
+        assert settings.value("appearance/theme") == mode.value
+
+    restored = ThemeManager(settings=QSettings(str(settings_path), QSettings.Format.IniFormat))
+    assert restored.current_mode == ThemeMode.DARK
+
+
+def test_system_theme_resolves_to_a_concrete_palette(qapp, tmp_path):
+    """System mode must remain selected while exposing a usable concrete palette."""
+    settings = QSettings(str(tmp_path / "system.ini"), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings=settings)
+
+    manager.set_mode(ThemeMode.SYSTEM)
+
+    assert manager.current_mode == ThemeMode.SYSTEM
+    assert manager.resolved_mode in (ThemeMode.LIGHT, ThemeMode.DARK)
+    expected = LIGHT_PALETTE if manager.resolved_mode == ThemeMode.LIGHT else DARK_PALETTE
+    assert manager.current_palette == expected
+
+
+def test_system_theme_reacts_to_operating_system_appearance(qapp, tmp_path, monkeypatch):
+    """A Qt appearance notification must re-resolve System without changing the preference."""
+    settings = QSettings(str(tmp_path / "system-change.ini"), QSettings.Format.IniFormat)
+    manager = ThemeManager(settings=settings)
+    manager.set_mode(ThemeMode.SYSTEM)
+    target_mode = ThemeMode.LIGHT if manager.resolved_mode == ThemeMode.DARK else ThemeMode.DARK
+    monkeypatch.setattr(manager, "_resolve_mode", lambda _mode: target_mode)
+
+    manager._on_system_color_scheme_changed(Qt.ColorScheme.Unknown)
+
+    assert manager.current_mode == ThemeMode.SYSTEM
+    assert manager.resolved_mode == target_mode
+    assert manager.current_palette == (
+        LIGHT_PALETTE if target_mode == ThemeMode.LIGHT else DARK_PALETTE
+    )
+    assert settings.value("appearance/theme") == ThemeMode.SYSTEM.value
+
+
+def test_popup_menus_use_readable_theme_surfaces(qapp):
+    """Popup menus must define contrasting background, text, hover, and disabled states."""
+    manager = ThemeManager()
+    manager.set_mode(ThemeMode.DARK, persist=False)
+
+    stylesheet = manager.generate_stylesheet()
+
+    assert "QMenu {" in stylesheet
+    assert f"background-color: {DARK_PALETTE.bg_surface};" in stylesheet
+    assert f"color: {DARK_PALETTE.text_primary};" in stylesheet
+    assert "QMenu::item:selected" in stylesheet
+    assert f"background-color: {DARK_PALETTE.bg_hover};" in stylesheet
+    assert "QMenu::item:disabled" in stylesheet
+    assert f"color: {DARK_PALETTE.text_muted};" in stylesheet
 
 
 def test_workspace_tabs_management(app_instance, qtbot):
@@ -94,6 +248,9 @@ def test_workspace_tabs_management(app_instance, qtbot):
     # Close sole tab (should be prevented)
     window._on_tab_close_requested(0)
     assert window.tabs_workspace.count() == 1
+
+    qtbot.mouseClick(window.btn_new_query, Qt.MouseButton.LeftButton)
+    assert window.tabs_workspace.count() == 2
 
 
 def test_execute_uses_active_connection_and_displays_real_rows(qtbot):
@@ -113,6 +270,45 @@ def test_execute_uses_active_connection_and_displays_real_rows(qtbot):
     pool.worker.run()
     assert window.results_widget.table_model.rowCount() == 1
     assert window.results_widget.table_model.item(0, 0).text() == "42"
+
+
+def test_ctrl_enter_executes_the_active_query(qtbot):
+    """The documented keyboard shortcut must dispatch the active editor query."""
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    window._active_connection = MagicMock()
+    editor = window.tabs_workspace.currentWidget()
+    editor.set_sql_text("SELECT 1;")
+    window.show()
+    QApplication.processEvents()
+    editor.editor.setFocus()
+    QApplication.processEvents()
+
+    qtbot.keyClick(editor.editor, Qt.Key.Key_Return, modifier=Qt.KeyboardModifier.ControlModifier)
+
+    assert pool.worker is not None
+
+
+def test_execute_dispatches_only_the_selected_sql(qtbot):
+    """Button and keyboard execution must prioritize the editor selection."""
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    window._active_connection = MagicMock()
+    editor = window.tabs_workspace.currentWidget()
+    sql = "SELECT 1;\nSELECT\n  2 AS answer;"
+    editor.set_sql_text(sql)
+    cursor = editor.editor.textCursor()
+    cursor.setPosition(sql.index("SELECT\n"))
+    cursor.setPosition(len(sql), QTextCursor.MoveMode.KeepAnchor)
+    editor.editor.setTextCursor(cursor)
+
+    window.execute_current_query()
+
+    assert pool.worker is not None
+    assert pool.worker.request.sql == "SELECT\n  2 AS answer;"
+    assert "selección" in window.btn_execute.toolTip()
 
 
 def test_opening_new_connection_keeps_main_window_alive(app_instance, qtbot, monkeypatch):
@@ -167,6 +363,77 @@ def test_inspection_success_updates_explorer_database_breadcrumb_and_status(qtbo
     assert "db_outlet" in window.breadcrumb_bar.lbl_db.text()
     assert "B2B_OUTLET" in window.breadcrumb_bar.lbl_conn.text()
     assert "Conectado" in window.status_lbl_conn.text()
+    assert "Desarrollo" in window.status_lbl_conn.text()
+
+
+def test_successful_inspection_attaches_schema_to_existing_and_new_sql_tabs(qtbot):
+    """Every SQL tab must complete from the currently inspected database schema."""
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    profile = ConnectionProfile(name="B2B_OUTLET", engine="postgresql", database="db_outlet")
+    schema = create_live_schema()
+    window._candidate_connection = MagicMock()
+    window._candidate_profile = profile
+    window._candidate_database = "db_outlet"
+
+    window._on_inspection_succeeded(DatabaseInspectionResult(("db_outlet",), schema))
+
+    existing_editor = window.tabs_workspace.currentWidget()
+    cached_schema = window._metadata_cache.get(f"{profile.id}/db_outlet")
+    assert cached_schema is window._active_schema
+    assert cached_schema is not schema
+    assert existing_editor.completer.engine.schema_model is cached_schema
+    new_editor = window.add_new_query_tab()
+    assert new_editor.completer.engine.schema_model is cached_schema
+
+
+def test_lazy_table_columns_refresh_intellisense_cache(qtbot):
+    """Loaded columns must become suggestions without a database call per keystroke."""
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    profile = ConnectionProfile(name="B2B_OUTLET", engine="postgresql", database="db_outlet")
+    schema = create_live_schema()
+    window._candidate_connection = MagicMock()
+    window._candidate_profile = profile
+    window._candidate_database = "db_outlet"
+    window._on_inspection_succeeded(DatabaseInspectionResult(("db_outlet",), schema))
+
+    with patch.object(window.connection_service, "build_connection", return_value=MagicMock()):
+        window._on_table_expansion_requested("public", "customers")
+    columns = [Column(name="email", native_type="text")]
+    pool.worker.signals.succeeded.emit("public", "customers", columns)
+
+    editor = window.tabs_workspace.currentWidget()
+    assert window._active_schema is not schema
+    assert [
+        column.name for column in window._active_schema.find_table("customers", "public").columns
+    ] == ["email"]
+    completions = editor.completer.engine.get_completions(
+        prefix="em",
+        context_text="SELECT c.em\nFROM public.customers c",
+    )
+    assert [item.text for item in completions] == ["email"]
+
+
+def test_successful_ddl_refreshes_cached_metadata(qtbot):
+    pool = RecordingThreadPool()
+    window = MainWindow(thread_pool=pool, auto_load_profile=False)
+    qtbot.addWidget(window)
+    window._active_profile = ConnectionProfile(
+        name="B2B_OUTLET", engine="postgresql", database="db_outlet"
+    )
+    window._active_database = "db_outlet"
+    window._active_connection = MagicMock()
+    editor = window.tabs_workspace.currentWidget()
+    editor.set_sql_text("CREATE TABLE audit_log (id bigint);")
+
+    with patch.object(window, "_refresh_active_database") as refresh:
+        window.execute_current_query()
+        pool.worker.run()
+
+    refresh.assert_called_once_with()
 
 
 def test_database_selection_queues_candidate_for_selected_database(qtbot):

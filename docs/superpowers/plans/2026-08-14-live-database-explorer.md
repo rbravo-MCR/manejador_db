@@ -112,8 +112,9 @@ def test_schema_worker_emits_database_names_and_schema(qtbot):
     results = []
     worker.signals.succeeded.connect(results.append)
 
-    with patch.object(PostgreSQLInspector, "list_databases", return_value=["db_outlet"]), patch.object(
-        PostgreSQLInspector, "inspect_database", return_value=schema
+    with (
+        patch.object(PostgreSQLInspector, "list_databases", return_value=["db_outlet"]),
+        patch.object(PostgreSQLInspector, "inspect_database", return_value=schema),
     ):
         worker.run()
 
@@ -156,7 +157,9 @@ class SchemaInspectionSignals(QObject):
 
 
 class SchemaInspectionWorker(QRunnable):
-    def __init__(self, connection: DatabaseConnection, database_names: tuple[str, ...] | None = None):
+    def __init__(
+        self, connection: DatabaseConnection, database_names: tuple[str, ...] | None = None
+    ):
         super().__init__()
         self.connection = connection
         self.database_names = database_names
@@ -212,7 +215,9 @@ def test_database_dropdown_sits_above_filter_and_emits_selection(qtbot):
     explorer.set_databases(["analytics", "db_outlet"], "db_outlet")
     explorer.cmb_database.setCurrentText("analytics")
 
-    assert explorer.layout().indexOf(explorer.cmb_database) < explorer.layout().indexOf(explorer.txt_filter)
+    assert explorer.layout().indexOf(explorer.cmb_database) < explorer.layout().indexOf(
+        explorer.txt_filter
+    )
     assert selected == ["analytics"]
 
 

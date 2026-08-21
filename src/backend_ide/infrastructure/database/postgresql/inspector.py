@@ -56,6 +56,36 @@ class PostgreSQLInspector:
         )
         return [row["datname"] for row in rows]
 
+    def get_schemas(self) -> list[str]:
+        """Return user schemas through the shared metadata-provider contract."""
+        return self._get_schemas()
+
+    def get_tables(self, schema: str | None = None) -> list[Table]:
+        """Return fully described tables for one or all user schemas."""
+        schemas = [schema] if schema else self._get_schemas()
+        return [table for schema_name in schemas for table in self._inspect_tables(schema_name)]
+
+    def get_views(self, schema: str | None = None) -> list[View]:
+        """Return views for one or all user schemas."""
+        schemas = [schema] if schema else self._get_schemas()
+        return [view for schema_name in schemas for view in self._inspect_views(schema_name)]
+
+    def get_columns(self, table: str, schema: str | None = None) -> list[Column]:
+        """Return columns for a table through the shared metadata-provider contract."""
+        return self.inspect_table_columns(schema or "public", table)
+
+    def get_foreign_keys(self, table: str, schema: str | None = None) -> list[ForeignKey]:
+        """Return foreign keys for a table through the shared metadata-provider contract."""
+        return self._inspect_foreign_keys(schema or "public", table)
+
+    def get_functions(self) -> list[Function]:
+        """Return functions from all user schemas."""
+        return [
+            function
+            for schema_name in self._get_schemas()
+            for function in self._inspect_routines(schema_name)[0]
+        ]
+
     def inspect_database_summary(self) -> DatabaseSchema:
         """Build the lightweight schema/table model required by Database Explorer."""
         rows = self.connection.execute_query(
@@ -82,6 +112,92 @@ class PostgreSQLInspector:
                 Schema(name=schema_name, tables=tables)
                 for schema_name, tables in tables_by_schema.items()
             ],
+        )
+
+    def inspect_completion_metadata(self) -> DatabaseSchema:
+        """Load completion metadata in bounded bulk catalog queries."""
+        object_rows = self.connection.execute_query(
+            """
+            SELECT table_schema AS schema_name,
+                   table_name AS object_name,
+                   CASE WHEN table_type = 'VIEW' THEN 'view' ELSE 'table' END AS object_kind
+            FROM information_schema.tables
+            WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+              AND table_schema NOT LIKE 'pg_toast%'
+            ORDER BY table_schema, table_name;
+            """
+        )
+        column_rows = self.connection.execute_query(
+            """
+            SELECT table_schema, table_name, column_name, data_type, udt_name,
+                   is_nullable, column_default, character_maximum_length,
+                   numeric_precision, numeric_scale, is_identity
+            FROM information_schema.columns
+            WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+              AND table_schema NOT LIKE 'pg_toast%'
+            ORDER BY table_schema, table_name, ordinal_position;
+            """
+        )
+        routine_rows = self.connection.execute_query(
+            """
+            SELECT n.nspname AS schema_name,
+                   p.proname AS routine_name,
+                   p.prokind AS routine_kind,
+                   pg_get_function_result(p.oid) AS return_type,
+                   pg_get_functiondef(p.oid) AS definition,
+                   l.lanname AS language
+            FROM pg_proc p
+            JOIN pg_namespace n ON n.oid = p.pronamespace
+            JOIN pg_language l ON l.oid = p.prolang
+            WHERE n.nspname NOT IN ('information_schema', 'pg_catalog')
+              AND n.nspname NOT LIKE 'pg_toast%'
+            ORDER BY n.nspname, p.proname;
+            """
+        )
+
+        schemas: dict[str, Schema] = {}
+        columns_by_table: dict[tuple[str, str], list[Column]] = {}
+        for row in column_rows:
+            key = (row["table_schema"], row["table_name"])
+            columns_by_table.setdefault(key, []).append(self._column_from_catalog_row(row))
+
+        for row in object_rows:
+            schema_name = row["schema_name"]
+            schema = schemas.setdefault(schema_name, Schema(name=schema_name))
+            if row["object_kind"] == "view":
+                schema.views.append(View(name=row["object_name"], schema_name=schema_name))
+            else:
+                schema.tables.append(
+                    Table(
+                        name=row["object_name"],
+                        schema_name=schema_name,
+                        columns=columns_by_table.get(
+                            (schema_name, row["object_name"]),
+                            [],
+                        ),
+                    )
+                )
+
+        for row in routine_rows:
+            schema_name = row["schema_name"]
+            schema = schemas.setdefault(schema_name, Schema(name=schema_name))
+            common = {
+                "name": row["routine_name"],
+                "schema_name": schema_name,
+                "definition": row.get("definition"),
+                "language": row.get("language"),
+            }
+            if row.get("routine_kind") == "p":
+                schema.procedures.append(Procedure(**common))
+            else:
+                schema.functions.append(
+                    Function(return_type=row.get("return_type") or "void", **common)
+                )
+
+        return DatabaseSchema(
+            engine_name="postgresql",
+            database_name=self._get_current_database_name(),
+            schemas=list(schemas.values()),
         )
 
     def inspect_table_columns(self, schema_name: str, table_name: str) -> list[Column]:
@@ -198,35 +314,29 @@ class PostgreSQLInspector:
         ORDER BY ordinal_position;
         """
         rows = self.connection.execute_query(query, (schema_name, table_name))
-        columns: list[Column] = []
+        return [self._column_from_catalog_row(row) for row in rows]
 
-        for row in rows:
-            raw_type = row["data_type"]
-            if raw_type == "USER-DEFINED":
-                raw_type = row["udt_name"]
-
-            col_default = row["column_default"]
-            is_auto = row.get("is_identity") == "YES" or (
-                col_default is not None and "nextval" in str(col_default).lower()
-            )
-
-            norm_type = map_pg_type_to_normalized(raw_type)
-
-            columns.append(
-                Column(
-                    name=row["column_name"],
-                    native_type=raw_type.upper(),
-                    normalized_type=norm_type,
-                    is_nullable=row["is_nullable"] == "YES",
-                    is_auto_increment=is_auto,
-                    default_value=str(col_default) if col_default is not None else None,
-                    precision=row.get("numeric_precision"),
-                    scale=row.get("numeric_scale"),
-                    length=row.get("character_maximum_length"),
-                )
-            )
-
-        return columns
+    @staticmethod
+    def _column_from_catalog_row(row: dict[str, Any]) -> Column:
+        """Map a bulk or table-scoped information_schema row to the domain model."""
+        raw_type = row["data_type"]
+        if raw_type == "USER-DEFINED":
+            raw_type = row["udt_name"]
+        col_default = row.get("column_default")
+        is_auto = row.get("is_identity") == "YES" or (
+            col_default is not None and "nextval" in str(col_default).lower()
+        )
+        return Column(
+            name=row["column_name"],
+            native_type=raw_type.upper(),
+            normalized_type=map_pg_type_to_normalized(raw_type),
+            is_nullable=row["is_nullable"] == "YES",
+            is_auto_increment=is_auto,
+            default_value=str(col_default) if col_default is not None else None,
+            precision=row.get("numeric_precision"),
+            scale=row.get("numeric_scale"),
+            length=row.get("character_maximum_length"),
+        )
 
     def _inspect_primary_key(self, schema_name: str, table_name: str) -> PrimaryKey | None:
         """Inspect primary key for a table."""

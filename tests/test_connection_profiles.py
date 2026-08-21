@@ -10,8 +10,9 @@ from PySide6.QtWidgets import QLineEdit
 
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.domain.connection import ConnectionProfile, Environment
+from backend_ide.infrastructure.database.sqlite.connection import SQLiteConnection
 from backend_ide.infrastructure.storage.connection_repository import ConnectionRepository
-from backend_ide.ui.components import ConnectionSelector
+from backend_ide.ui.components import ConnectionSelector, EnvironmentIndicator
 from backend_ide.ui.dialogs.connection_dialog import ConnectionDialog
 
 os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -135,6 +136,24 @@ def test_connection_service_can_target_another_database_without_mutating_profile
     assert profile.database == "db_outlet"
 
 
+def test_connection_service_builds_a_working_sqlite_adapter(temp_repo, tmp_path):
+    repo, _ = temp_repo
+    service = ConnectionService(repo)
+    profile = ConnectionProfile(
+        name="Local SQLite",
+        engine="sqlite",
+        database=str(tmp_path / "local.sqlite3"),
+    )
+
+    adapter = service.build_connection(profile)
+    adapter.execute_query("CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT)")
+    rows = adapter.execute_query("SELECT name FROM sqlite_master WHERE type = 'table'")
+
+    assert isinstance(adapter, SQLiteConnection)
+    assert rows == [{"name": "users"}]
+    adapter.disconnect()
+
+
 def test_connection_selector_can_select_profile_by_id(temp_repo, qtbot):
     """A newly saved profile can become the active toolbar selection."""
     repo, _ = temp_repo
@@ -148,6 +167,42 @@ def test_connection_selector_can_select_profile_by_id(temp_repo, qtbot):
 
     assert selector.select_profile(second.id)
     assert selector.get_selected_profile().id == second.id
+
+
+def test_environment_indicator_uses_full_semantic_labels_without_badge_chrome(qtbot):
+    """Environment context must read as status, not as an abbreviated button-like badge."""
+    indicator = EnvironmentIndicator()
+    qtbot.addWidget(indicator)
+
+    expected_labels = {
+        Environment.DEVELOPMENT: "Desarrollo",
+        Environment.TESTING: "Pruebas",
+        Environment.STAGING: "Preproducción",
+        Environment.PRODUCTION: "Producción",
+    }
+    for environment, label in expected_labels.items():
+        indicator.set_environment(environment)
+        assert indicator.text_label.text() == label
+        assert indicator.dot.property("environment") == environment.value
+
+    indicator.set_environment(None)
+    assert indicator.text_label.text() == "Sin entorno"
+    assert indicator.dot.property("environment") == "none"
+    assert indicator.styleSheet() == ""
+    assert indicator.focusPolicy() == Qt.FocusPolicy.NoFocus
+    assert indicator.testAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+
+
+def test_connection_selector_uses_semantic_environment_indicator(temp_repo, qtbot):
+    """The connection selector must use the reusable non-interactive status indicator."""
+    repo, _ = temp_repo
+    selector = ConnectionSelector(ConnectionService(repo))
+    qtbot.addWidget(selector)
+
+    assert selector.get_selected_profile().color is None
+    assert selector.env_indicator.text_label.text() == "Desarrollo"
+    assert selector.env_indicator.dot.property("environment") == "development"
+    assert selector.env_indicator.styleSheet() == ""
 
 
 def test_connection_dialog_gui(temp_repo, qtbot):

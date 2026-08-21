@@ -1,10 +1,13 @@
 """Connection Selector Dropdown Component with Profile Management Actions."""
 
+import qtawesome as qta
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from backend_ide.application.connection_service import ConnectionService
 from backend_ide.domain.connection import ConnectionProfile, Environment
+from backend_ide.ui.components.environment_indicator import EnvironmentIndicator
+from backend_ide.ui.theme import ThemeManager
 
 
 class ConnectionSelector(QWidget):
@@ -19,46 +22,49 @@ class ConnectionSelector(QWidget):
         self.setFixedHeight(36)
         self.service = connection_service or ConnectionService()
         self._profiles: list[ConnectionProfile] = []
+        self._theme_manager = ThemeManager.get_instance()
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self.btn_new = QPushButton("🔌 Nueva Conexión")
-        self.btn_new.setObjectName("btn_new_conn")
-        self.btn_new.setFixedHeight(30)
+        self.lbl_profile = QLabel("Perfil:")
+
+        self.combo = QComboBox()
+        self.combo.setFixedHeight(32)
+        self.combo.setMinimumWidth(180)
+        self.combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        self.env_indicator = EnvironmentIndicator()
+
+        self.btn_new = QPushButton("Nueva conexión")
+        self.btn_new.setFixedHeight(32)
         self.btn_new.setToolTip("Abrir diálogo para crear una nueva conexión a base de datos")
 
-        label = QLabel("Perfil:")
-        self.combo = QComboBox()
-        self.combo.setFixedHeight(30)
-        self.combo.setMinimumWidth(220)
-        self.env_badge = QLabel(" [DEV] ")
-        self.env_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.env_badge.setFixedSize(58, 24)
-
-        badge_style = (
-            "background-color: #89b4fa; color: #181825; "
-            "font-weight: bold; border-radius: 4px; padding: 2px 6px;"
-        )
-        self.env_badge.setStyleSheet(badge_style)
-
-        self.btn_edit = QPushButton("⚙️ Editar")
-        self.btn_edit.setFixedHeight(30)
+        self.btn_edit = QPushButton("Editar")
+        self.btn_edit.setFixedHeight(32)
         self.btn_edit.setToolTip("Editar parámetros de la conexión seleccionada")
 
         self.btn_new.clicked.connect(self.new_connection_requested.emit)
         self.btn_edit.clicked.connect(self.edit_connection_requested.emit)
         self.combo.currentIndexChanged.connect(self._on_connection_changed)
 
-        layout.addWidget(self.btn_new, alignment=Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(label, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.lbl_profile, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.combo, alignment=Qt.AlignmentFlag.AlignVCenter)
-        layout.addWidget(self.env_badge, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.env_indicator, alignment=Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(self.btn_new, alignment=Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.btn_edit, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         self.refresh_profiles()
+        self._theme_manager.theme_changed.connect(self._refresh_icons)
+        self._refresh_icons()
+
+    def _refresh_icons(self, _mode_str: str | None = None) -> None:
+        """Keep connection actions legible in every appearance mode."""
+        color = self._theme_manager.current_palette.text_secondary
+        self.btn_new.setIcon(qta.icon("fa6s.plug-circle-plus", color=color))
+        self.btn_edit.setIcon(qta.icon("fa6s.pen-to-square", color=color))
 
     def refresh_profiles(self) -> None:
         """Reload saved profiles into combo box."""
@@ -95,25 +101,12 @@ class ConnectionSelector(QWidget):
         return True
 
     def _on_connection_changed(self, index: int) -> None:
-        """Update environment badge styling when selection changes."""
+        """Update the semantic environment context when selection changes."""
         profile = self.get_selected_profile()
         if not profile:
+            self.env_indicator.set_environment(None)
             return
 
-        env_val = profile.environment.value.upper()
-        self.env_badge.setText(f" [{env_val[:4]}] ")
-
-        color_map = {
-            Environment.DEVELOPMENT: "#89b4fa",
-            Environment.TESTING: "#a6e3a1",
-            Environment.STAGING: "#f9e2af",
-            Environment.PRODUCTION: "#f38ba8",
-        }
-        bg_color = profile.color or color_map.get(profile.environment, "#89b4fa")
-        style = (
-            f"background-color: {bg_color}; color: #11111b; "
-            "font-weight: bold; border-radius: 4px; padding: 2px 6px;"
-        )
-        self.env_badge.setStyleSheet(style)
+        self.env_indicator.set_environment(profile.environment)
 
         self.connection_changed.emit(profile.id)

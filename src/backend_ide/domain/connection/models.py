@@ -30,7 +30,7 @@ class ConnectionProfile(BaseModel):
     database: str = "postgres"
     username: str = "postgres"
     environment: Environment = Environment.DEVELOPMENT
-    color: str | None = "#89b4fa"  # Optional UI accent color
+    color: str | None = None  # Optional UI accent color
     group_name: str | None = None
     ssl_mode: str = "prefer"
     options: dict[str, Any] = Field(default_factory=dict)

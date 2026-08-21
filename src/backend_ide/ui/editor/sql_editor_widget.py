@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtCore import QRect, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -107,6 +107,7 @@ class SqlCodeEditor(QPlainTextEdit):
 
     text_modified = Signal(bool)
     trigger_completion = Signal()
+    manual_completion_requested = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -131,6 +132,16 @@ class SqlCodeEditor(QPlainTextEdit):
 
     def _on_text_changed(self) -> None:
         self.trigger_completion.emit()
+
+    def keyPressEvent(self, event) -> None:
+        """Handle the editor-level IntelliSense command before inserting text."""
+        if event.key() == Qt.Key.Key_Space and event.modifiers() & (
+            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier
+        ):
+            self.manual_completion_requested.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def line_number_area_width(self) -> int:
         digits = max(1, len(str(self.blockCount())))
@@ -160,11 +171,7 @@ class SqlCodeEditor(QPlainTextEdit):
         extra_selections = []
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-            line_color = (
-                QColor("#45475a")
-                if ThemeManager.get_instance().current_mode == ThemeMode.DARK
-                else QColor("#dce0e6")
-            )
+            line_color = QColor(ThemeManager.get_instance().current_palette.bg_hover)
             selection.format.setBackground(line_color)
             selection.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             selection.cursor = self.textCursor()
@@ -213,12 +220,20 @@ class SqlEditorWidget(QWidget):
         self.editor = SqlCodeEditor(self)
         self.highlighter = SqlSyntaxHighlighter(self.editor.document())
         self.completer = SqlCompleter(self.editor, self)
+        self.completion_timer = QTimer(self)
+        self.completion_timer.setSingleShot(True)
+        self.completion_timer.setInterval(150)
+        self.completion_timer.timeout.connect(self.completer.trigger_popup)
         layout.addWidget(self.editor)
 
         self.editor.text_modified.connect(self.text_modified.emit)
 
         if initial_text:
             self.set_sql_text(initial_text)
+
+        self.editor.trigger_completion.connect(self._schedule_completion)
+        self.editor.manual_completion_requested.connect(self._show_manual_completion)
+        self.editor.setToolTip("IntelliSense automático · Ctrl+Space para mostrar sugerencias")
 
         self._theme_manager = ThemeManager.get_instance()
         self._theme_manager.theme_changed.connect(self._apply_theme)
@@ -227,6 +242,23 @@ class SqlEditorWidget(QWidget):
     def set_completion_schema(self, schema_model: DatabaseSchema) -> None:
         """Update schema model for autocompletion engine."""
         self.completer.set_schema_model(schema_model)
+
+    def _schedule_completion(self) -> None:
+        """Debounce normal typing but respond to member access immediately."""
+        cursor = self.editor.textCursor()
+        sql = self.editor.toPlainText()
+        previous_character = sql[cursor.position() - 1 : cursor.position()]
+        self.completer.popup().hide()
+        self.completer.model_items.clear()
+        if previous_character == ".":
+            self.completion_timer.stop()
+            self.completer.trigger_popup()
+            return
+        self.completion_timer.start()
+
+    def _show_manual_completion(self) -> None:
+        self.completion_timer.stop()
+        self.completer.trigger_popup(force=True)
 
     def _apply_theme(self, mode_str: str) -> None:
         p = self._theme_manager.current_palette
@@ -238,13 +270,15 @@ class SqlEditorWidget(QWidget):
         }}
         """
         self.editor.setStyleSheet(style)
-        self.highlighter.set_theme_colors(mode_str, p)
+        self.highlighter.set_theme_colors(self._theme_manager.resolved_mode.value, p)
         self.editor.highlight_current_line()
 
     def get_sql_text(self) -> str:
+        """Return the selected SQL, or the complete document when there is no selection."""
         cursor = self.editor.textCursor()
         if cursor.hasSelection():
-            return cursor.selectedText().strip()
+            selected = cursor.selectedText().replace("\u2029", "\n").replace("\u2028", "\n")
+            return selected.strip()
         return self.editor.toPlainText().strip()
 
     def set_sql_text(self, text: str) -> None:

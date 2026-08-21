@@ -3,6 +3,7 @@
 from backend_ide.domain.connection import ConnectionProfile
 from backend_ide.infrastructure.database.contracts import ConnectionConfig, DatabaseConnection
 from backend_ide.infrastructure.database.postgresql import PostgreSQLConnection
+from backend_ide.infrastructure.database.sqlite import SQLiteConnection
 from backend_ide.infrastructure.storage.connection_repository import ConnectionRepository
 
 
@@ -58,6 +59,8 @@ class ConnectionService:
 
         if profile.engine == "postgresql":
             return PostgreSQLConnection(config)
+        if profile.engine == "sqlite":
+            return SQLiteConnection(config)
 
         # Fallback or generic connection handler
         return PostgreSQLConnection(config)

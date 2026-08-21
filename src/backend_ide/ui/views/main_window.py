@@ -1,8 +1,12 @@
 """Main Application Window for PySide6 Desktop Shell."""
 
+import re
+
+import qtawesome as qta
 from PySide6.QtCore import Qt, QThreadPool, QTimer
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -16,8 +20,10 @@ from PySide6.QtWidgets import (
 
 from backend_ide import __version__
 from backend_ide.application.connection_service import ConnectionService
+from backend_ide.application.metadata_cache import ConnectionMetadataCache
 from backend_ide.application.query_service import ExecuteQueryService
 from backend_ide.domain.connection import ConnectionProfile
+from backend_ide.domain.schema import Column, DatabaseSchema
 from backend_ide.domain.sql import QueryRequest, QueryResult
 from backend_ide.infrastructure.database.contracts import DatabaseConnection
 from backend_ide.infrastructure.database.schema_inspection_worker import (
@@ -27,6 +33,7 @@ from backend_ide.infrastructure.database.schema_inspection_worker import (
 from backend_ide.infrastructure.database.table_columns_worker import TableColumnsWorker
 from backend_ide.infrastructure.logging import get_logger
 from backend_ide.ui.components import BreadcrumbWidget, ConnectionSelector, ThemeToggleButton
+from backend_ide.ui.components.environment_indicator import environment_label
 from backend_ide.ui.dialogs import ConnectionDialog
 from backend_ide.ui.editor import SqlEditorWidget
 from backend_ide.ui.explorer import DatabaseExplorerWidget
@@ -50,6 +57,7 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self.setWindowTitle(f"Backend Development IDE v{__version__}")
         self.resize(1340, 840)
+        self.setMinimumSize(1100, 700)
 
         self._thread_pool = thread_pool or QThreadPool.globalInstance()
         self.connection_service = connection_service or ConnectionService()
@@ -61,12 +69,18 @@ class MainWindow(QMainWindow):
         self._candidate_database: str | None = None
         self._candidate_connection: DatabaseConnection | None = None
         self._database_names: tuple[str, ...] = ()
+        self._metadata_cache = ConnectionMetadataCache()
+        self._active_metadata_key: str | None = None
+        self._active_schema: DatabaseSchema | None = None
         self._inspection_worker: SchemaInspectionWorker | None = None
         self._column_workers: dict[tuple[str, str], TableColumnsWorker] = {}
         self._query_worker = None
+        self._executed_sql = ""
         self._is_inspecting = False
         self._theme_manager = ThemeManager.get_instance()
         self._setup_ui()
+        self._theme_manager.theme_changed.connect(self._refresh_action_icons)
+        self._refresh_action_icons()
         self._theme_manager.apply_theme()
         if auto_load_profile:
             QTimer.singleShot(0, self._load_initial_profile)
@@ -79,13 +93,15 @@ class MainWindow(QMainWindow):
         main_layout.setSpacing(0)
 
         # 1. Segmented Top Bar Toolbar
-        top_bar = QWidget()
-        top_bar.setObjectName("top_bar")
-        top_bar.setFixedHeight(52)
-        top_layout = QHBoxLayout(top_bar)
+        self.top_bar = QWidget()
+        self.top_bar.setObjectName("top_bar")
+        self.top_bar.setFixedHeight(52)
+        top_layout = QGridLayout(self.top_bar)
         top_layout.setContentsMargins(12, 8, 12, 8)
-        top_layout.setSpacing(12)
-        top_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        top_layout.setHorizontalSpacing(12)
+        top_layout.setColumnStretch(0, 1)
+        top_layout.setColumnStretch(1, 0)
+        top_layout.setColumnStretch(2, 1)
 
         # Left Connection Group
         self.conn_selector = ConnectionSelector(self.connection_service)
@@ -93,47 +109,52 @@ class MainWindow(QMainWindow):
         self.conn_selector.edit_connection_requested.connect(self.open_edit_connection_dialog)
 
         # Center Execution Group
-        center_toolbar = QWidget()
-        center_toolbar.setObjectName("toolbar_group")
-        center_toolbar.setFixedHeight(36)
-        center_layout = QHBoxLayout(center_toolbar)
+        self.query_toolbar = QWidget()
+        self.query_toolbar.setObjectName("toolbar_group")
+        self.query_toolbar.setFixedHeight(36)
+        center_layout = QHBoxLayout(self.query_toolbar)
         center_layout.setContentsMargins(3, 2, 3, 2)
         center_layout.setSpacing(6)
         center_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self.btn_execute = QPushButton("▶️ Ejecutar")
+        self.btn_execute = QPushButton("Ejecutar")
         self.btn_execute.setObjectName("btn_execute")
-        self.btn_execute.setFixedHeight(30)
-        self.btn_execute.setToolTip("Ejecutar consulta activa (Ctrl+Enter)")
+        self.btn_execute.setFixedHeight(32)
+        self.btn_execute.setToolTip("Ejecutar selección o consulta activa (Ctrl+Enter)")
 
-        btn_new_query = QPushButton("➕ Nueva Consulta")
-        btn_er_diagram = QPushButton("🗺️ Diagrama ER")
-        btn_new_query.setFixedHeight(30)
-        btn_er_diagram.setFixedHeight(30)
+        self.btn_new_query = QPushButton("Nueva consulta")
+        self.btn_er_diagram = QPushButton("Diagrama ER")
+        self.btn_new_query.setFixedHeight(32)
+        self.btn_er_diagram.setFixedHeight(32)
+        self.btn_er_diagram.setEnabled(False)
+        self.btn_er_diagram.setToolTip("Disponible en una fase posterior")
 
         self.btn_execute.clicked.connect(self.execute_current_query)
-        btn_new_query.clicked.connect(self.add_new_query_tab)
+        self.btn_new_query.clicked.connect(self.add_new_query_tab)
+        self.execute_shortcut = QShortcut(QKeySequence("Ctrl+Return"), self)
+        self.execute_shortcut.activated.connect(self.execute_current_query)
+        self.execute_keypad_shortcut = QShortcut(QKeySequence("Ctrl+Enter"), self)
+        self.execute_keypad_shortcut.activated.connect(self.execute_current_query)
 
         center_layout.addWidget(self.btn_execute)
-        center_layout.addWidget(btn_new_query)
-        center_layout.addWidget(btn_er_diagram)
+        center_layout.addWidget(self.btn_new_query)
+        center_layout.addWidget(self.btn_er_diagram)
 
         # Right Theme & Settings Group
         self.theme_toggle = ThemeToggleButton()
 
-        top_layout.addWidget(self.conn_selector)
-        top_layout.addWidget(center_toolbar)
-        top_layout.addStretch()
-        top_layout.addWidget(self.theme_toggle)
+        top_layout.addWidget(self.conn_selector, 0, 0, Qt.AlignmentFlag.AlignLeft)
+        top_layout.addWidget(self.query_toolbar, 0, 1, Qt.AlignmentFlag.AlignCenter)
+        top_layout.addWidget(self.theme_toggle, 0, 2, Qt.AlignmentFlag.AlignRight)
 
-        main_layout.addWidget(top_bar)
+        main_layout.addWidget(self.top_bar)
 
         # 2. Breadcrumb Navigation Context Bar
         self.breadcrumb_bar = BreadcrumbWidget()
         main_layout.addWidget(self.breadcrumb_bar)
 
         # 3. Main Horizontal Splitter (Sidebar Explorer | Workspace)
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         # Left Sidebar (Database Explorer Widget)
         self.explorer_widget = DatabaseExplorerWidget()
@@ -142,12 +163,13 @@ class MainWindow(QMainWindow):
         self.explorer_widget.refresh_requested.connect(self._refresh_active_database)
         self.explorer_widget.add_connection_requested.connect(self.open_new_connection_dialog)
         self.explorer_widget.table_expansion_requested.connect(self._on_table_expansion_requested)
-        self.explorer_widget.setMinimumWidth(320)
+        self.explorer_widget.setMinimumWidth(280)
 
         # Right Area (Workspace Tabs + Results Splitter)
-        workspace_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.workspace_splitter = QSplitter(Qt.Orientation.Vertical)
 
         self.tabs_workspace = QTabWidget()
+        self.tabs_workspace.setMinimumHeight(240)
         self.tabs_workspace.setTabsClosable(True)
         self.tabs_workspace.tabCloseRequested.connect(self._on_tab_close_requested)
 
@@ -158,16 +180,23 @@ class MainWindow(QMainWindow):
 
         # Bottom Results Panel (ResultsWidget)
         self.results_widget = ResultsWidget(self.query_service)
+        self.results_widget.setMinimumHeight(180)
 
-        workspace_splitter.addWidget(self.tabs_workspace)
-        workspace_splitter.addWidget(self.results_widget)
-        workspace_splitter.setSizes([460, 260])
+        self.workspace_splitter.addWidget(self.tabs_workspace)
+        self.workspace_splitter.addWidget(self.results_widget)
+        self.workspace_splitter.setChildrenCollapsible(False)
+        self.workspace_splitter.setStretchFactor(0, 13)
+        self.workspace_splitter.setStretchFactor(1, 7)
+        self.workspace_splitter.setSizes([455, 245])
 
-        main_splitter.addWidget(self.explorer_widget)
-        main_splitter.addWidget(workspace_splitter)
-        main_splitter.setSizes([340, 1000])
+        self.main_splitter.addWidget(self.explorer_widget)
+        self.main_splitter.addWidget(self.workspace_splitter)
+        self.main_splitter.setChildrenCollapsible(False)
+        self.main_splitter.setStretchFactor(0, 0)
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setSizes([340, 1000])
 
-        main_layout.addWidget(main_splitter)
+        main_layout.addWidget(self.main_splitter)
         self.setCentralWidget(main_container)
 
         # 4. Status Bar
@@ -180,6 +209,15 @@ class MainWindow(QMainWindow):
 
         self.breadcrumb_bar.set_path("Sin conexión", "—", "—")
         self.conn_selector.connection_changed.connect(self._on_profile_changed)
+
+    def _refresh_action_icons(self, _mode_str: str | None = None) -> None:
+        """Repaint top-level workflow actions after a theme change."""
+        color = self._theme_manager.current_palette.text_secondary
+        self.btn_execute.setIcon(
+            qta.icon("fa6s.play", color=self._theme_manager.current_palette.text_on_accent)
+        )
+        self.btn_new_query.setIcon(qta.icon("fa6s.file-circle-plus", color=color))
+        self.btn_er_diagram.setIcon(qta.icon("fa6s.diagram-project", color=color))
 
     def _load_initial_profile(self) -> None:
         """Inspect the first saved profile when the desktop starts."""
@@ -250,10 +288,15 @@ class MainWindow(QMainWindow):
         self._database_names = names
 
         self.explorer_widget.set_databases(names, result.schema.database_name)
-        self.explorer_widget.load_schema_model(profile.name, result.schema)
-        first_schema = result.schema.schemas[0].name if result.schema.schemas else "—"
-        self.breadcrumb_bar.set_path(profile.name, result.schema.database_name, first_schema)
-        environment = profile.environment.value.capitalize()
+        metadata_key = f"{profile.id}/{result.schema.database_name}"
+        snapshot = self._metadata_cache.put(metadata_key, result.schema)
+        self._active_metadata_key = metadata_key
+        self.explorer_widget.load_schema_model(profile.name, snapshot)
+        self._active_schema = snapshot
+        self._apply_completion_schema_to_editors()
+        first_schema = snapshot.schemas[0].name if snapshot.schemas else "—"
+        self.breadcrumb_bar.set_path(profile.name, snapshot.database_name, first_schema)
+        environment = environment_label(profile.environment)
         self.status_lbl_conn.setText(
             f" Conectado: {profile.name} / {result.schema.database_name} ({environment}) "
         )
@@ -326,11 +369,45 @@ class MainWindow(QMainWindow):
             database_name=self._active_database,
         )
         worker = TableColumnsWorker(connection, schema_name, table_name)
-        worker.signals.succeeded.connect(self.explorer_widget.load_table_columns)
+        schema_snapshot = self._active_schema
+        worker.signals.succeeded.connect(
+            lambda loaded_schema, loaded_table, columns: self._on_table_columns_loaded(
+                schema_snapshot,
+                loaded_schema,
+                loaded_table,
+                columns,
+            )
+        )
         worker.signals.failed.connect(self.explorer_widget.show_table_columns_error)
         worker.signals.finished.connect(self._on_table_columns_finished)
         self._column_workers[key] = worker
         self._thread_pool.start(worker)
+
+    def _on_table_columns_loaded(
+        self,
+        schema_snapshot: DatabaseSchema | None,
+        schema_name: str,
+        table_name: str,
+        columns: list[Column],
+    ) -> None:
+        """Update the explorer and cached completion metadata atomically."""
+        if (
+            schema_snapshot is None
+            or schema_snapshot is not self._active_schema
+            or self._active_metadata_key is None
+        ):
+            return
+        self.explorer_widget.load_table_columns(schema_name, table_name, columns)
+        try:
+            self._active_schema = self._metadata_cache.update_columns(
+                self._active_metadata_key,
+                schema_name,
+                table_name,
+                columns,
+            )
+        except KeyError:
+            return
+        self._apply_completion_schema_to_editors()
 
     def _on_table_columns_finished(self, schema_name: str, table_name: str) -> None:
         """Release the retained Qt worker after its signals have been delivered."""
@@ -369,6 +446,8 @@ class MainWindow(QMainWindow):
         base_title = f"Consulta-{tab_index}.sql"
 
         editor = SqlEditorWidget(initial_text=initial_sql)
+        if self._active_schema is not None:
+            editor.set_completion_schema(self._active_schema)
 
         def on_modified(modified: bool) -> None:
             idx = self.tabs_workspace.indexOf(editor)
@@ -381,6 +460,15 @@ class MainWindow(QMainWindow):
         self.tabs_workspace.addTab(editor, base_title)
         self.tabs_workspace.setCurrentWidget(editor)
         return editor
+
+    def _apply_completion_schema_to_editors(self) -> None:
+        """Attach the active cached schema to every open SQL editor."""
+        if self._active_schema is None:
+            return
+        for index in range(self.tabs_workspace.count()):
+            editor = self.tabs_workspace.widget(index)
+            if isinstance(editor, SqlEditorWidget):
+                editor.set_completion_schema(self._active_schema)
 
     def execute_current_query(self) -> None:
         """Execute SQL query from active workspace tab."""
@@ -398,7 +486,8 @@ class MainWindow(QMainWindow):
             return
 
         self.btn_execute.setEnabled(False)
-        self.results_widget.lbl_stats.setText("⏳ Ejecutando consulta…")
+        self.results_widget.lbl_stats.setText("Ejecutando consulta…")
+        self._executed_sql = sql_text
         self._query_worker = self.query_service.execute_async(
             self._active_connection,
             QueryRequest(sql=sql_text),
@@ -410,6 +499,19 @@ class MainWindow(QMainWindow):
         self.results_widget.display_result(result)
         self.btn_execute.setEnabled(True)
         self._query_worker = None
+        if not result.has_error and self._contains_schema_ddl(self._executed_sql):
+            self._refresh_active_database()
+
+    @staticmethod
+    def _contains_schema_ddl(sql: str) -> bool:
+        """Detect successful schema-changing statements conservatively."""
+        return bool(
+            re.search(
+                r"(?:^|;)\s*(?:CREATE|ALTER|DROP)\s+(?:TABLE|VIEW)\b",
+                sql,
+                re.IGNORECASE,
+            )
+        )
 
     def _on_query_requested(self, sql_query: str) -> None:
         """Handle generated SQL query emitted by Explorer."""

@@ -6,6 +6,8 @@ from typing import Any
 import qtawesome as qta
 from PySide6.QtWidgets import QTreeWidgetItem
 
+from backend_ide.ui.theme import ThemeManager
+
 
 class ExplorerNodeType(StrEnum):
     """Explorer tree node types."""
@@ -45,22 +47,27 @@ class ExplorerTreeItem(QTreeWidgetItem):
     def _setup_appearance(self) -> None:
         """Assign compact library icons matching a professional database navigator."""
         icon_map = {
-            ExplorerNodeType.CONNECTION: ("fa6s.plug", "#89b4fa"),
-            ExplorerNodeType.DATABASE: ("fa6s.database", "#89b4fa"),
-            ExplorerNodeType.SCHEMA: ("fa6s.folder", "#a6adc8"),
-            ExplorerNodeType.TABLE_GROUP: ("fa6s.folder", "#a6adc8"),
-            ExplorerNodeType.TABLE: ("fa6s.table-cells", "#f9e2af"),
-            ExplorerNodeType.VIEW_GROUP: ("fa6s.folder", "#a6adc8"),
-            ExplorerNodeType.VIEW: ("fa6s.eye", "#89b4fa"),
-            ExplorerNodeType.FUNCTION_GROUP: ("fa6s.folder", "#a6adc8"),
-            ExplorerNodeType.FUNCTION: ("fa6s.bolt", "#f9e2af"),
-            ExplorerNodeType.PROCEDURE_GROUP: ("fa6s.folder", "#a6adc8"),
-            ExplorerNodeType.PROCEDURE: ("fa6s.gears", "#a6adc8"),
-            ExplorerNodeType.TRIGGER_GROUP: ("fa6s.folder", "#a6adc8"),
-            ExplorerNodeType.TRIGGER: ("fa6s.bell", "#f9e2af"),
-            ExplorerNodeType.COLUMN: ("fa6s.grip-lines-vertical", "#6c7086"),
+            ExplorerNodeType.CONNECTION: ("fa6s.plug", "accent"),
+            ExplorerNodeType.DATABASE: ("fa6s.database", "accent"),
+            ExplorerNodeType.SCHEMA: ("fa6s.folder", "text_secondary"),
+            ExplorerNodeType.TABLE_GROUP: ("fa6s.folder", "text_secondary"),
+            ExplorerNodeType.TABLE: ("fa6s.table-cells", "warning"),
+            ExplorerNodeType.VIEW_GROUP: ("fa6s.folder", "text_secondary"),
+            ExplorerNodeType.VIEW: ("fa6s.eye", "accent"),
+            ExplorerNodeType.FUNCTION_GROUP: ("fa6s.folder", "text_secondary"),
+            ExplorerNodeType.FUNCTION: ("fa6s.bolt", "warning"),
+            ExplorerNodeType.PROCEDURE_GROUP: ("fa6s.folder", "text_secondary"),
+            ExplorerNodeType.PROCEDURE: ("fa6s.gears", "text_secondary"),
+            ExplorerNodeType.TRIGGER_GROUP: ("fa6s.folder", "text_secondary"),
+            ExplorerNodeType.TRIGGER: ("fa6s.bell", "warning"),
+            ExplorerNodeType.COLUMN: ("fa6s.grip-lines-vertical", "text_muted"),
         }
         icon_spec = icon_map.get(self.node_type)
         if icon_spec:
-            icon_name, color = icon_spec
+            icon_name, color_token = icon_spec
+            color = getattr(ThemeManager.get_instance().current_palette, color_token)
             self.setIcon(0, qta.icon(icon_name, color=color))
+
+    def refresh_appearance(self) -> None:
+        """Repaint the node icon after an application theme change."""
+        self._setup_appearance()

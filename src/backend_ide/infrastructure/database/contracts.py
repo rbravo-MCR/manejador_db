@@ -65,6 +65,23 @@ class DatabaseInspector(Protocol):
 
 
 @runtime_checkable
+class MetadataProvider(Protocol):
+    """Database-specific metadata source consumed outside the editor UI."""
+
+    def get_schemas(self) -> list[str]: ...
+
+    def get_tables(self, schema: str | None = None) -> list[Any]: ...
+
+    def get_views(self, schema: str | None = None) -> list[Any]: ...
+
+    def get_columns(self, table: str, schema: str | None = None) -> list[Any]: ...
+
+    def get_foreign_keys(self, table: str, schema: str | None = None) -> list[Any]: ...
+
+    def get_functions(self) -> list[Any]: ...
+
+
+@runtime_checkable
 class SQLDialect(Protocol):
     """Protocol for database SQL dialect specifics."""
 
